@@ -389,82 +389,52 @@ function daysUntil(iso: string): number {
 }
 
 function DDayStrip() {
-  const [showThesis, setShowThesis] = useState(false);
+  // Sort by date so the timeline reads left → right chronologically.
+  const sorted = [...KEY_DATES].sort((a, b) => a.iso.localeCompare(b.iso));
   return (
     <section className="mb-8">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {KEY_DATES.map((d) => {
-          const days = daysUntil(d.iso);
-          const passed = days < 0;
-          const fmt = new Date(d.iso + "T00:00:00").toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          });
-          return (
-            <div
-              key={d.iso}
-              title={d.note}
-              className={`border p-3 ${
-                d.highlight
-                  ? "border-white bg-white/10 shadow-[0_0_0_1px_white]"
-                  : "border-white/40"
-              }`}
-            >
-              <div className="text-[10px] uppercase tracking-widest text-muted">{d.label}</div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <div className={`text-2xl font-bold ${d.highlight ? "text-white" : ""}`}>
-                  {passed ? "—" : `D-${days}`}
+      {/* Horizontal timeline */}
+      <div className="relative px-1 py-6">
+        {/* baseline */}
+        <div className="absolute left-1 right-1 top-1/2 h-px -translate-y-1/2 bg-white/30" />
+        <div className="relative grid grid-cols-4 gap-2">
+          {sorted.map((d) => {
+            const days = daysUntil(d.iso);
+            const passed = days < 0;
+            const fmt = new Date(d.iso + "T00:00:00").toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "2-digit",
+            });
+            return (
+              <div key={d.iso} title={d.note} className="flex flex-col items-center text-center">
+                <div className="text-[9px] font-semibold uppercase tracking-widest text-muted sm:text-[10px]">
+                  {d.label}
                 </div>
-                <div className="text-[10px] uppercase tracking-widest text-muted">{fmt}</div>
+                <div
+                  className={`my-2 h-3 w-3 rotate-45 border ${
+                    d.highlight ? "border-white bg-white" : "border-white/60 bg-bg"
+                  }`}
+                />
+                <div className={`text-base font-bold sm:text-lg ${d.highlight ? "text-white" : "text-white/80"}`}>
+                  {passed ? "PAST" : `D-${days}`}
+                </div>
+                <div className="text-[9px] uppercase tracking-widest text-muted sm:text-[10px]">{fmt}</div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      <div className="mt-3 border border-white/40 p-3">
-        <button
-          onClick={() => setShowThesis(!showThesis)}
-          className="flex w-full items-baseline justify-between text-left text-xs uppercase tracking-widest text-muted hover:text-white"
+      <div className="mt-1 text-right text-[10px] uppercase tracking-widest text-muted">
+        <a
+          href="https://x.com/Dobbyisbad/status/2056008919945027755?s=20"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
         >
-          <span>
-            <span className="font-bold text-white">▶ July 9 thesis</span> — discretionary signal,
-            not data
-          </span>
-          <span>{showThesis ? "−" : "+"}</span>
-        </button>
-        {showThesis && (
-          <div className="mt-3 space-y-3 border-t border-white/30 pt-3 text-xs leading-relaxed text-muted">
-            <p>
-              <span className="font-bold text-white">$POLY TGE = July 9, 2026.</span> Mid-World-Cup
-              season. Polymarket designer posted a photo of Mustafa&apos;s desk on May 14, with
-              everything blurred — menu bar, browser, every UI element. Except one detail: a dock
-              calendar showing &quot;Thursday the 9th.&quot;
-            </p>
-            <p>
-              When everything&apos;s blurred except one detail, that detail is the message. July 9
-              is the only rest day between Round of 16 (Jul 7–8) and Quarter-finals (Jul 10–12). No
-              matches. No competing attention. The token IS the story for 24 hours. Then QFs start
-              July 10 with everyone already holding $POLY, ready to trade the biggest week of the
-              tournament.
-            </p>
-            <ul className="ml-4 list-disc space-y-1">
-              <li>Feb 4 — $POLY trademark filed</li>
-              <li>Apr 6 — exchange upgrade &quot;in coming weeks&quot; + Polymarket USD</li>
-              <li>May 10 — dev confirms POLY staking &quot;soon&quot;</li>
-              <li>
-                May 13 — Mustafa&apos;s Claude Code screenshot: taker rebates done, staking discount
-                being coded
-              </li>
-              <li>May 14 — the calendar dot</li>
-            </ul>
-            <p className="text-white/80">
-              This isn&apos;t &quot;before World Cup.&quot; It&apos;s mid-tournament, rest day, peak
-              captive audience. Mark July 9.
-            </p>
-          </div>
-        )}
+          ▶ Why July 9?
+        </a>
       </div>
     </section>
   );
