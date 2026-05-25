@@ -41,7 +41,6 @@ export default function HomePage() {
   const [donateToast, setDonateToast] = useState(false);
   const [hasClickedLogo, setHasClickedLogo] = useState(false);
   const [tips, setTips] = useState<{ totalUsd: number; ethAmount: number; usdcAmount: number; usdtAmount: number } | null>(null);
-  const [siteStats, setSiteStats] = useState<{ total: number; today: number; uniqueWallets: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -49,15 +48,6 @@ export default function HomePage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => alive && j && !j.error && setTips(j))
       .catch(() => {});
-    // Count a visit, then read the latest totals.
-    fetch("/api/stats", { method: "POST" })
-      .catch(() => {})
-      .finally(() => {
-        fetch("/api/stats")
-          .then((r) => (r.ok ? r.json() : null))
-          .then((j) => alive && j && typeof j.total === "number" && setSiteStats(j))
-          .catch(() => {});
-      });
     return () => {
       alive = false;
     };
@@ -108,12 +98,6 @@ export default function HomePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to fetch");
       setStats(json as WalletStats);
-      // record unique wallet checked
-      fetch("/api/stats", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "wallet", wallet: address.trim().toLowerCase() }),
-      }).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -190,7 +174,6 @@ export default function HomePage() {
         </div>
 
         <nav className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
-          <VisitorBadge stats={siteStats} />
           <TipsBadge tips={tips} />
           <IconLink
             href="https://polymarket.com/@halbaeyo"
@@ -607,32 +590,6 @@ function WaveTimeline({
           })}
         </div>
       </div>
-    </div>
-  );
-}
-
-function VisitorBadge({
-  stats,
-}: {
-  stats: { total: number; today: number; uniqueWallets: number } | null;
-}) {
-  const tooltip = stats
-    ? `${stats.total.toLocaleString()} visits all-time · ${stats.uniqueWallets.toLocaleString()} unique wallets checked`
-    : "Counting visits…";
-  return (
-    <div
-      title={tooltip}
-      className="flex items-center gap-2 border border-white bg-black px-3 py-2 text-xs uppercase tracking-widest"
-    >
-      <span className="text-muted">Visits</span>
-      <span className="font-bold text-white">
-        {stats ? stats.total.toLocaleString() : "—"}
-      </span>
-      <span className="text-muted">·</span>
-      <span className="text-muted">Wallets</span>
-      <span className="font-bold text-white">
-        {stats ? stats.uniqueWallets.toLocaleString() : "—"}
-      </span>
     </div>
   );
 }
