@@ -1,0 +1,693 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type { Economics, ScoreRow, WalletStats, Weights } from "@/lib/scoring";
+import {
+  score,
+  DEFAULT_WEIGHTS,
+  DEFAULT_ECONOMICS,
+  ECONOMICS_CONFIG,
+  SLIDER_CONFIG,
+  TOTAL_SUPPLY,
+  getTier,
+  scaledTiers,
+  airdropSupply,
+  tokenPriceUsd,
+} from "@/lib/scoring";
+
+const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
+
+const fmt0 = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmtUsd = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const fmtPrice = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(4)}`);
+const fmtFdv = (n: number) => `$${(n / 1e9).toFixed(1)}B`;
+
+type Tab = "breakdown" | "weights" | "economics" | "social";
+
+export default function HomePage() {
+  const [address, setAddress] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<WalletStats | null>(null);
+
+  const [xConnected, setXConnected] = useState(true);
+  const [profileViews, setProfileViews] = useState(0);
+  const [referrals, setReferrals] = useState(0);
+  const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
+  const [economics, setEconomics] = useState<Economics>(DEFAULT_ECONOMICS);
+  const [tab, setTab] = useState<Tab>("breakdown");
+  const [logoWiggle, setLogoWiggle] = useState(false);
+  const [donateToast, setDonateToast] = useState(false);
+  const [tips, setTips] = useState<{ totalUsd: number; ethAmount: number; usdcAmount: number; usdtAmount: number } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/tips")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => alive && j && !j.error && setTips(j))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function copyDonation() {
+    try {
+      await navigator.clipboard.writeText(ETH_ADDRESS);
+    } catch {
+      // clipboard may be blocked — animate anyway
+    }
+    setLogoWiggle(true);
+    setDonateToast(true);
+    setTimeout(() => setLogoWiggle(false), 650);
+    setTimeout(() => setDonateToast(false), 2200);
+  }
+
+  const result = useMemo(
+    () =>
+      stats
+        ? score(stats, { xConnected, profileViews, referralsInvited: referrals }, weights, economics)
+        : null,
+    [stats, xConnected, profileViews, referrals, weights, economics]
+  );
+
+  const tier = result ? getTier(result.estimatedTokens, economics) : null;
+  const tiers = useMemo(() => scaledTiers(economics), [economics]);
+  const supply = airdropSupply(economics);
+  const price = tokenPriceUsd(economics);
+
+  async function check() {
+    setError(null);
+    if (!ADDR_RE.test(address.trim())) {
+      setError("Enter a valid 0x… wallet address (40 hex chars).");
+      return;
+    }
+    setLoading(true);
+    setStats(null);
+    try {
+      const res = await fetch(`/api/wallet?address=${address.trim().toLowerCase()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to fetch");
+      setStats(json as WalletStats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
+      <header className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button
+            type="button"
+            onClick={copyDonation}
+            title="Click to copy ETH donation address"
+            aria-label="Copy ETH donation address"
+            className="group relative inline-flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20"
+          >
+            <img
+              src="/logo.png"
+              alt="Logo — click to donate ETH"
+              className={`h-16 w-16 object-contain transition-transform duration-200 group-hover:scale-105 sm:h-20 sm:w-20 ${
+                logoWiggle ? "logo-wiggle" : ""
+              }`}
+            />
+            {donateToast && (
+              <>
+                <span className="tip-pop absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white bg-white px-3 py-1 text-xs font-black uppercase tracking-widest text-black">
+                  Tip me!
+                </span>
+                <span className="toast-in absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+                  ETH address copied
+                </span>
+              </>
+            )}
+          </button>
+          <div className="group relative min-w-0">
+            <h1
+              tabIndex={0}
+              className="cursor-help text-xl font-bold uppercase leading-tight tracking-tight underline decoration-dotted decoration-white/30 underline-offset-[6px] hover:decoration-white focus:decoration-white focus:outline-none sm:text-3xl sm:leading-normal"
+            >
+              Polymarket Airdrop Calculator
+            </h1>
+            <div className="pointer-events-none absolute left-0 top-full z-30 mt-3 w-[min(28rem,calc(100vw-1.5rem))] border border-white bg-black p-4 opacity-0 shadow-[0_8px_30px_-10px_rgba(255,255,255,0.25)] transition-opacity duration-150 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+              <p className="text-sm leading-relaxed text-muted">
+                Hyperliquid-style point system over Polymarket on-chain activity. Tier breakpoints
+                come from HYPE&apos;s genesis distribution percentiles, scaled to $POLY.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                Built by{" "}
+                <a
+                  href="https://x.com/Dobbyisbad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white underline decoration-white/40 underline-offset-2 hover:decoration-white"
+                >
+                  @halbaeyo
+                </a>
+                {" "}— if this helped, tap the logo to copy my ETH tip address, or sign up on
+                Polymarket with my referral.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <TipsBadge tips={tips} />
+          <IconLink
+            href="https://polymarket.com/@halbaeyo"
+            label="Developer profile"
+            title="Visit @halbaeyo's Polymarket profile"
+          >
+            <PolymarketMark />
+          </IconLink>
+          <IconLink
+            href="https://polymarket.com/?r=halbaeyo"
+            label="Join the market"
+            title="Sign up on Polymarket with my referral"
+          >
+            <PolymarketMark />
+          </IconLink>
+          <IconOnly
+            href="https://x.com/Dobbyisbad"
+            title="Follow @Dobbyisbad on X"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+            </svg>
+          </IconOnly>
+        </nav>
+      </header>
+
+      {/* WALLET INPUT */}
+      <section className="mb-8 border border-white p-4 sm:p-5">
+        <label className="text-xs uppercase tracking-widest text-muted">Polymarket wallet</label>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="0x…"
+            inputMode="text"
+            className="min-w-0 flex-1 border border-white bg-black px-4 py-3 text-base outline-none focus:bg-white focus:text-black"
+            spellCheck={false}
+            autoComplete="off"
+            onKeyDown={(e) => e.key === "Enter" && check()}
+          />
+          <button
+            onClick={check}
+            disabled={loading}
+            className="border border-white bg-white px-6 py-3 text-sm font-semibold uppercase tracking-wider text-black hover:bg-black hover:text-white disabled:opacity-50"
+          >
+            {loading ? "…" : "Check"}
+          </button>
+        </div>
+        {error && <div className="mt-3 text-sm text-white">{error}</div>}
+      </section>
+
+      {/* RESULT PANEL — pinned */}
+      <section className="mb-2 border border-white">
+        <div className="border-b border-white px-5 py-2 text-[10px] uppercase tracking-widest text-muted">
+          Result
+        </div>
+
+        {/* Top stats */}
+        <div className="grid grid-cols-1 border-b border-white md:grid-cols-4">
+          <StatCard label="Estimated tokens" value={result ? fmt0(result.estimatedTokens) : "—"} sub="$POLY" />
+          <StatCard
+            label="Estimated value"
+            value={result ? fmtUsd(result.estimatedValueUsd) : "—"}
+            sub={`@ ${fmtPrice(price)}/token`}
+            borderLeft
+          />
+          <StatCard
+            label="Total points"
+            value={result ? fmt0(result.totalPoints) : "—"}
+            sub={result ? `${result.poolSharePct.toFixed(4)}% of pool` : "—"}
+            borderLeft
+          />
+          <StatCard
+            label="Tier"
+            value={tier ? tier.rank : "—"}
+            sub={tier ? `≥ ${fmt0(tier.minTokens)} tokens` : "—"}
+            borderLeft
+          />
+        </div>
+
+        {/* Tier table — desktop header (hidden on mobile) */}
+        <div className="hidden border-b border-white px-5 py-3 text-xs uppercase tracking-widest text-muted sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr]">
+          <div>Tier</div>
+          <div className="text-right">Cohort size</div>
+          <div className="text-right">Min $POLY</div>
+          <div className="text-right">Median $POLY</div>
+          <div className="text-right">Max $POLY</div>
+        </div>
+        {tiers.map((t, i) => {
+          const isCurrent = tier?.rank === t.rank;
+          return (
+            <div
+              key={t.rank}
+              className={`px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
+                i < tiers.length - 1 ? "border-b border-white/30" : ""
+              } ${
+                isCurrent
+                  ? "relative z-10 -my-px scale-[1.01] bg-white text-black shadow-[0_0_0_2px_white,inset_0_0_0_1px_black]"
+                  : ""
+              }`}
+            >
+              <div className={`${isCurrent ? "text-base font-bold uppercase" : "font-semibold"} text-sm sm:text-base`}>
+                {isCurrent && <span className="mr-2">▶</span>}
+                {t.rank}
+                {isCurrent && (
+                  <span className="ml-2 border border-black bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white sm:text-xs">
+                    You
+                  </span>
+                )}
+              </div>
+              {/* Mobile: 2x2 metric grid; Desktop: inline cells */}
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:hidden">
+                <div className="text-muted">Cohort</div>
+                <div className="text-right">{fmt0(t.cohortSize)}</div>
+                <div className="text-muted">Min</div>
+                <div className="text-right">{fmt0(t.minTokens)}</div>
+                <div className="text-muted">Median</div>
+                <div className={`text-right ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
+                <div className="text-muted">Max</div>
+                <div className="text-right">{fmt0(t.maxTokens)}</div>
+              </div>
+              <div className="hidden text-right sm:block">{fmt0(t.cohortSize)}</div>
+              <div className="hidden text-right sm:block">{fmt0(t.minTokens)}</div>
+              <div className={`hidden text-right sm:block ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
+              <div className="hidden text-right sm:block">{fmt0(t.maxTokens)}</div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* TAB STRIP */}
+      <section className="border border-white">
+        <div className="grid grid-cols-4 border-b border-white">
+          {(["breakdown", "weights", "economics", "social"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-2 py-3 text-[10px] uppercase tracking-widest transition sm:px-5 sm:py-4 sm:text-xs ${
+                tab === t ? "bg-white text-black" : "text-muted hover:text-white"
+              } ${t !== "social" ? "border-r border-white" : ""}`}
+            >
+              {tabLabel(t)}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-3 sm:p-5">
+          {tab === "breakdown" && <BreakdownPanel rows={result?.rows ?? placeholderRows()} />}
+          {tab === "weights" && (
+            <WeightsPanel weights={weights} onChange={setWeights} onReset={() => setWeights(DEFAULT_WEIGHTS)} />
+          )}
+          {tab === "economics" && (
+            <EconomicsPanel
+              economics={economics}
+              onChange={setEconomics}
+              onReset={() => setEconomics(DEFAULT_ECONOMICS)}
+              supply={supply}
+              price={price}
+            />
+          )}
+          {tab === "social" && (
+            <SocialPanel
+              xConnected={xConnected}
+              setXConnected={setXConnected}
+              xMultiplier={weights.xMultiplier}
+              profileViews={profileViews}
+              setProfileViews={setProfileViews}
+              referrals={referrals}
+              setReferrals={setReferrals}
+            />
+          )}
+        </div>
+      </section>
+
+      <footer className="mt-10 text-xs text-muted">
+        Live data from data-api.polymarket.com. Tier thresholds derived from Hyperliquid HYPE
+        genesis distribution (min 0.11, p50 64.4, p99 58,318, max 1.97M HYPE), scaled to a
+        hypothetical $POLY airdrop. $POLY has not launched — estimate only.
+      </footer>
+    </main>
+  );
+}
+
+function tabLabel(t: Tab): string {
+  switch (t) {
+    case "breakdown":
+      return "Breakdown";
+    case "weights":
+      return "Weights";
+    case "economics":
+      return "Economics";
+    case "social":
+      return "Social";
+  }
+}
+
+const ETH_ADDRESS = "0xeB26869ac8B9F9EE306327D460953453832A8810";
+
+function TipsBadge({
+  tips,
+}: {
+  tips: { totalUsd: number; ethAmount: number; usdcAmount: number; usdtAmount: number } | null;
+}) {
+  const tooltip = tips
+    ? `${tips.ethAmount.toFixed(4)} ETH · ${(tips.usdcAmount + tips.usdtAmount).toFixed(2)} USDC/USDT`
+    : "Loading on-chain tip total…";
+  return (
+    <div
+      title={tooltip}
+      className="flex items-center gap-2 border border-white bg-black px-3 py-2 text-xs uppercase tracking-widest"
+    >
+      <span className="text-muted">Tips</span>
+      <span className="font-bold text-white">
+        {tips ? `$${tips.totalUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—"}
+      </span>
+    </div>
+  );
+}
+
+function PolymarketMark() {
+  // The black-and-white Polymarket mark. We rely on filter:invert when the
+  // surrounding button flips background-on-hover so the mark stays readable.
+  return (
+    <img
+      src="/polymarket.png"
+      alt="Polymarket"
+      className="h-4 w-4 object-contain invert group-hover:invert-0"
+    />
+  );
+}
+
+function IconOnly({
+  href,
+  title,
+  children,
+}: {
+  href: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title}
+      aria-label={title}
+      className="group flex h-9 w-9 items-center justify-center border border-white hover:bg-white hover:text-black"
+    >
+      {children}
+    </a>
+  );
+}
+
+function IconLink({
+  href,
+  label,
+  title,
+  children,
+}: {
+  href: string;
+  label: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title}
+      className="group flex items-center gap-2 border border-white px-3 py-2 text-xs uppercase tracking-widest hover:bg-white hover:text-black"
+    >
+      {children}
+      <span>{label}</span>
+    </a>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  borderLeft,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  borderLeft?: boolean;
+}) {
+  return (
+    <div className={`p-4 sm:p-5 ${borderLeft ? "border-t border-white md:border-l md:border-t-0" : ""}`}>
+      <div className="text-xs uppercase tracking-widest text-muted">{label}</div>
+      <div className="mt-2 text-2xl font-semibold sm:mt-3 sm:text-3xl">{value}</div>
+      <div className="mt-2 text-xs text-muted">{sub}</div>
+    </div>
+  );
+}
+
+function BreakdownPanel({ rows }: { rows: ScoreRow[] }) {
+  return (
+    <div>
+      <div className="hidden border-b border-white pb-3 text-xs uppercase tracking-widest text-muted sm:grid sm:grid-cols-[1.6fr_1fr_1fr_0.7fr]">
+        <div>Component</div>
+        <div className="text-right">Input</div>
+        <div className="text-right">Weight</div>
+        <div className="text-right">Points</div>
+      </div>
+      {rows.map((r, i) => (
+        <div
+          key={r.label}
+          className={`py-3 text-sm sm:grid sm:grid-cols-[1.6fr_1fr_1fr_0.7fr] sm:items-center ${
+            i < rows.length - 1 ? "border-b border-white/30" : ""
+          }`}
+        >
+          <div className="font-semibold sm:font-normal">{r.label}</div>
+          {/* Mobile row */}
+          <div className="mt-1 flex items-baseline justify-between text-xs sm:hidden">
+            <span className="text-muted">{r.input} · {r.weight}</span>
+            <span className="font-semibold">
+              {r.isMultiplier ? (r.points > 0 ? `+${fmt0(r.points)}` : "—") : fmt0(r.points)}
+            </span>
+          </div>
+          <div className="hidden text-right sm:block">{r.input}</div>
+          <div className="hidden text-right text-muted sm:block">{r.weight}</div>
+          <div className="hidden text-right sm:block">
+            {r.isMultiplier ? (r.points > 0 ? `+${fmt0(r.points)}` : "—") : fmt0(r.points)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WeightsPanel({
+  weights,
+  onChange,
+  onReset,
+}: {
+  weights: Weights;
+  onChange: (w: Weights) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div>
+      <div className="mb-4 flex items-baseline justify-between">
+        <div className="text-xs text-muted">
+          Polymarket-skewed defaults: rewards <span className="text-white">activity & retention</span>{" "}
+          over whales or lucky PnL.
+        </div>
+        <button
+          onClick={onReset}
+          className="border border-white px-3 py-1 text-xs uppercase tracking-wider hover:bg-white hover:text-black"
+        >
+          Reset
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {(Object.keys(SLIDER_CONFIG) as Array<keyof Weights>).map((k) => {
+          const cfg = SLIDER_CONFIG[k];
+          return (
+            <div key={k}>
+              <div className="flex items-baseline justify-between text-xs text-muted">
+                <span>{cfg.label}</span>
+                <span className="font-semibold text-white">{weights[k].toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min={cfg.min}
+                max={cfg.max}
+                step={cfg.step}
+                value={weights[k]}
+                onChange={(e) => onChange({ ...weights, [k]: Number(e.target.value) })}
+                className="mt-2 w-full accent-white"
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EconomicsPanel({
+  economics,
+  onChange,
+  onReset,
+  supply,
+  price,
+}: {
+  economics: Economics;
+  onChange: (e: Economics) => void;
+  onReset: () => void;
+  supply: number;
+  price: number;
+}) {
+  return (
+    <div>
+      <div className="mb-4 flex items-baseline justify-between">
+        <div className="text-xs text-muted">
+          Hypothetical airdrop size and valuation. All tier thresholds scale with these.
+        </div>
+        <button
+          onClick={onReset}
+          className="border border-white px-3 py-1 text-xs uppercase tracking-wider hover:bg-white hover:text-black"
+        >
+          Reset
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div>
+          <div className="flex items-baseline justify-between text-xs text-muted">
+            <span>{ECONOMICS_CONFIG.airdropPct.label}</span>
+            <span className="font-semibold text-white">
+              {economics.airdropPct.toFixed(1)}% · {fmt0(supply)} $POLY
+            </span>
+          </div>
+          <input
+            type="range"
+            min={ECONOMICS_CONFIG.airdropPct.min}
+            max={ECONOMICS_CONFIG.airdropPct.max}
+            step={ECONOMICS_CONFIG.airdropPct.step}
+            value={economics.airdropPct}
+            onChange={(e) => onChange({ ...economics, airdropPct: Number(e.target.value) })}
+            className="mt-2 w-full accent-white"
+          />
+          <div className="mt-1 flex justify-between text-[10px] uppercase tracking-widest text-muted">
+            <span>5%</span>
+            <span>of {fmt0(TOTAL_SUPPLY)} total</span>
+            <span>35%</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-baseline justify-between text-xs text-muted">
+            <span>{ECONOMICS_CONFIG.fdvUsd.label}</span>
+            <span className="font-semibold text-white">
+              {fmtFdv(economics.fdvUsd)} · {fmtPrice(price)}/token
+            </span>
+          </div>
+          <input
+            type="range"
+            min={ECONOMICS_CONFIG.fdvUsd.min}
+            max={ECONOMICS_CONFIG.fdvUsd.max}
+            step={ECONOMICS_CONFIG.fdvUsd.step}
+            value={economics.fdvUsd}
+            onChange={(e) => onChange({ ...economics, fdvUsd: Number(e.target.value) })}
+            className="mt-2 w-full accent-white"
+          />
+          <div className="mt-1 flex justify-between text-[10px] uppercase tracking-widest text-muted">
+            <span>$5B</span>
+            <span>FDV</span>
+            <span>$100B</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SocialPanel({
+  xConnected,
+  setXConnected,
+  xMultiplier,
+  profileViews,
+  setProfileViews,
+  referrals,
+  setReferrals,
+}: {
+  xConnected: boolean;
+  setXConnected: (v: boolean) => void;
+  xMultiplier: number;
+  profileViews: number;
+  setProfileViews: (n: number) => void;
+  referrals: number;
+  setReferrals: (n: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div>
+        <div className="text-xs uppercase tracking-widest text-muted">X / Twitter connected</div>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="text-sm text-muted">+{Math.round((xMultiplier - 1) * 100)}% multiplier</div>
+          <button
+            onClick={() => setXConnected(!xConnected)}
+            aria-pressed={xConnected}
+            className={`relative h-7 w-12 border border-white ${xConnected ? "bg-white" : "bg-black"}`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 transition ${
+                xConnected ? "left-6 bg-black" : "left-0.5 bg-white"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+      <div>
+        <div className="text-xs uppercase tracking-widest text-muted">Profile views</div>
+        <input
+          type="number"
+          min={0}
+          value={profileViews}
+          onChange={(e) => setProfileViews(Math.max(0, Number(e.target.value) || 0))}
+          className="mt-3 w-full border border-white bg-black px-3 py-2 outline-none focus:bg-white focus:text-black"
+        />
+      </div>
+      <div>
+        <div className="text-xs uppercase tracking-widest text-muted">Referrals invited</div>
+        <input
+          type="number"
+          min={0}
+          value={referrals}
+          onChange={(e) => setReferrals(Math.max(0, Number(e.target.value) || 0))}
+          className="mt-3 w-full border border-white bg-black px-3 py-2 outline-none focus:bg-white focus:text-black"
+        />
+      </div>
+    </div>
+  );
+}
+
+function placeholderRows(): ScoreRow[] {
+  const w = DEFAULT_WEIGHTS;
+  return [
+    { key: "weightedVolume",        label: "Weighted volume",     input: "—", weight: `×${w.weightedVolume.toFixed(2)}`, points: 0 },
+    { key: "profitOnly",            label: "PnL (profit only)",   input: "—", weight: `×${w.profitOnly.toFixed(2)}`,     points: 0 },
+    { key: "lpRewards",             label: "LP rewards",          input: "—", weight: `×${w.lpRewards.toFixed(2)}`,      points: 0 },
+    { key: "perPrediction",         label: "Total predictions",   input: "—", weight: `×${w.perPrediction}/pred`,        points: 0 },
+    { key: "perAccountAgeDay",      label: "Account age",         input: "—", weight: `×${w.perAccountAgeDay}/day`,      points: 0 },
+    { key: "perProfileView",        label: "Profile views",       input: "—", weight: `×${w.perProfileView}/view`,       points: 0 },
+    { key: "perReferral",           label: "Referrals invited",   input: "—", weight: `×${w.perReferral}/ref`,           points: 0 },
+    { key: "perConsecutiveWeek",    label: "Consecutive weeks",   input: "—", weight: `×${w.perConsecutiveWeek}/wk`,     points: 0 },
+    { key: "perCategory",           label: "Category diversity",  input: "—", weight: `×${w.perCategory}/cat`,           points: 0 },
+    { key: "perAvgTradeSizeDollar", label: "Avg trade size",      input: "—", weight: `×${w.perAvgTradeSizeDollar}/$`,   points: 0 },
+    { key: "xMultiplier",           label: "X connected",         input: "—", weight: `×${w.xMultiplier.toFixed(2)}`,    points: 0, isMultiplier: true },
+  ];
+}
