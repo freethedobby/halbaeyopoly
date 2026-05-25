@@ -100,7 +100,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
+    <main className="relative z-10 mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
       <header className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
           <button
@@ -118,8 +118,11 @@ export default function HomePage() {
               }`}
             />
             {!hasClickedLogo && !donateToast && (
-              <span className="click-hint pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-black">
-                Click me!
+              <span className="click-hint pointer-events-none absolute -top-10 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap">
+                <span className="relative inline-block border-2 border-white bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-black shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
+                  Click me ↓
+                  <span className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-white bg-white"></span>
+                </span>
               </span>
             )}
             {donateToast && (
@@ -188,6 +191,8 @@ export default function HomePage() {
           </IconOnly>
         </nav>
       </header>
+
+      <DDayStrip />
 
       {/* WALLET INPUT */}
       <section className="mb-8 border border-white p-4 sm:p-5">
@@ -360,6 +365,110 @@ function tabLabel(t: Tab): string {
 }
 
 const ETH_ADDRESS = "0xeB26869ac8B9F9EE306327D460953453832A8810";
+
+type KeyDate = {
+  label: string;
+  iso: string; // YYYY-MM-DD
+  note: string;
+  highlight?: boolean;
+};
+
+const KEY_DATES: KeyDate[] = [
+  { label: "$POLY TGE (predicted)", iso: "2026-07-09", note: "World Cup rest day between R16 and QFs — calendar dot on Mustafa's blurred desk shot.", highlight: true },
+  { label: "World Cup R16 start", iso: "2026-07-07", note: "Round of 16 kicks off." },
+  { label: "World Cup Final", iso: "2026-07-19", note: "Tournament wraps." },
+  { label: "US Midterms", iso: "2026-11-03", note: "Largest political-prediction event of the year." },
+];
+
+function daysUntil(iso: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(iso + "T00:00:00");
+  const diffMs = target.getTime() - today.getTime();
+  return Math.round(diffMs / 86400000);
+}
+
+function DDayStrip() {
+  const [showThesis, setShowThesis] = useState(false);
+  return (
+    <section className="mb-8">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {KEY_DATES.map((d) => {
+          const days = daysUntil(d.iso);
+          const passed = days < 0;
+          const fmt = new Date(d.iso + "T00:00:00").toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+          return (
+            <div
+              key={d.iso}
+              title={d.note}
+              className={`border p-3 ${
+                d.highlight
+                  ? "border-white bg-white/10 shadow-[0_0_0_1px_white]"
+                  : "border-white/40"
+              }`}
+            >
+              <div className="text-[10px] uppercase tracking-widest text-muted">{d.label}</div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <div className={`text-2xl font-bold ${d.highlight ? "text-white" : ""}`}>
+                  {passed ? "—" : `D-${days}`}
+                </div>
+                <div className="text-[10px] uppercase tracking-widest text-muted">{fmt}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 border border-white/40 p-3">
+        <button
+          onClick={() => setShowThesis(!showThesis)}
+          className="flex w-full items-baseline justify-between text-left text-xs uppercase tracking-widest text-muted hover:text-white"
+        >
+          <span>
+            <span className="font-bold text-white">▶ July 9 thesis</span> — discretionary signal,
+            not data
+          </span>
+          <span>{showThesis ? "−" : "+"}</span>
+        </button>
+        {showThesis && (
+          <div className="mt-3 space-y-3 border-t border-white/30 pt-3 text-xs leading-relaxed text-muted">
+            <p>
+              <span className="font-bold text-white">$POLY TGE = July 9, 2026.</span> Mid-World-Cup
+              season. Polymarket designer posted a photo of Mustafa&apos;s desk on May 14, with
+              everything blurred — menu bar, browser, every UI element. Except one detail: a dock
+              calendar showing &quot;Thursday the 9th.&quot;
+            </p>
+            <p>
+              When everything&apos;s blurred except one detail, that detail is the message. July 9
+              is the only rest day between Round of 16 (Jul 7–8) and Quarter-finals (Jul 10–12). No
+              matches. No competing attention. The token IS the story for 24 hours. Then QFs start
+              July 10 with everyone already holding $POLY, ready to trade the biggest week of the
+              tournament.
+            </p>
+            <ul className="ml-4 list-disc space-y-1">
+              <li>Feb 4 — $POLY trademark filed</li>
+              <li>Apr 6 — exchange upgrade &quot;in coming weeks&quot; + Polymarket USD</li>
+              <li>May 10 — dev confirms POLY staking &quot;soon&quot;</li>
+              <li>
+                May 13 — Mustafa&apos;s Claude Code screenshot: taker rebates done, staking discount
+                being coded
+              </li>
+              <li>May 14 — the calendar dot</li>
+            </ul>
+            <p className="text-white/80">
+              This isn&apos;t &quot;before World Cup.&quot; It&apos;s mid-tournament, rest day, peak
+              captive audience. Mark July 9.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function TipsBadge({
   tips,

@@ -6,9 +6,9 @@ const config: Config = {
     extend: {
       colors: {
         ink: "#f1f3f7",
-        bg: "#2a2f38",
+        bg: "#0f1729",
         line: "#ffffff",
-        muted: "#b8bdc7",
+        muted: "#9ba6bb",
       },
       fontFamily: {
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
