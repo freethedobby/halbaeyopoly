@@ -39,6 +39,7 @@ export default function HomePage() {
   const [tab, setTab] = useState<Tab>("breakdown");
   const [logoWiggle, setLogoWiggle] = useState(false);
   const [donateToast, setDonateToast] = useState(false);
+  const [hasClickedLogo, setHasClickedLogo] = useState(false);
   const [tips, setTips] = useState<{ totalUsd: number; ethAmount: number; usdcAmount: number; usdtAmount: number } | null>(null);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function HomePage() {
     }
     setLogoWiggle(true);
     setDonateToast(true);
+    setHasClickedLogo(true);
     setTimeout(() => setLogoWiggle(false), 650);
     setTimeout(() => setDonateToast(false), 2200);
   }
@@ -112,9 +114,14 @@ export default function HomePage() {
               src="/logo.png"
               alt="Logo — click to donate ETH"
               className={`h-16 w-16 object-contain transition-transform duration-200 group-hover:scale-105 sm:h-20 sm:w-20 ${
-                logoWiggle ? "logo-wiggle" : ""
+                logoWiggle ? "logo-wiggle" : !hasClickedLogo && !donateToast ? "logo-idle-pulse" : ""
               }`}
             />
+            {!hasClickedLogo && !donateToast && (
+              <span className="click-hint pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-black">
+                Click me!
+              </span>
+            )}
             {donateToast && (
               <>
                 <span className="tip-pop absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white bg-white px-3 py-1 text-xs font-black uppercase tracking-widest text-black">

@@ -51,3 +51,21 @@ input[type="number"] {
 .tip-pop {
   animation: tip-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+@keyframes click-hint {
+  0%   { opacity: 0; transform: translate(-50%, -2px) scale(0.85); }
+  20%  { opacity: 1; transform: translate(-50%, -6px) scale(1.05); }
+  80%  { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -2px) scale(0.85); }
+}
+.click-hint {
+  animation: click-hint 2.4s ease-in-out infinite;
+}
+
+@keyframes logo-idle-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+.logo-idle-pulse {
+  animation: logo-idle-pulse 2.4s ease-in-out infinite;
+}
