@@ -378,7 +378,11 @@ const DEFAULT_STARS = { count: 40, palette: ["#6b7390", "#4d556e", "#5b6a8a"], s
 
 function StarField({ tier }: { tier: string | null }) {
   const cfg = tier ? TIER_STARS[tier] ?? DEFAULT_STARS : DEFAULT_STARS;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const stars = useMemo(() => {
+    if (!mounted) return [];
     const out: Array<{
       top: number; left: number; size: number; color: string; delay: number; duration: number;
     }> = [];
@@ -388,15 +392,18 @@ function StarField({ tier }: { tier: string | null }) {
         left: Math.random() * 100,
         size: cfg.sizeRange[0] + Math.random() * (cfg.sizeRange[1] - cfg.sizeRange[0]),
         color: cfg.palette[Math.floor(Math.random() * cfg.palette.length)],
-        delay: -Math.random() * 3,        // negative delay so they start mid-cycle
-        duration: 2 + Math.random() * 3,  // 2-5s twinkle
+        delay: -Math.random() * 3,
+        duration: 2 + Math.random() * 3,
       });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tier]);
+  }, [tier, mounted]);
+
+  // Server render = empty container (no random output), so SSR markup matches
+  // the first client render. Stars populate after the mount effect runs.
   return (
-    <div className="star-bg" aria-hidden>
+    <div className="star-bg" aria-hidden suppressHydrationWarning>
       {stars.map((s, i) => (
         <span
           key={i}
