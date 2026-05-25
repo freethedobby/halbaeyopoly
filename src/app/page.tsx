@@ -258,10 +258,11 @@ export default function HomePage() {
         </div>
         {tiers.map((t, i) => {
           const isCurrent = tier?.rank === t.rank;
+          const confettiClass = confettiClassFor(t.rank);
           return (
             <div
               key={t.rank}
-              className={`px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
+              className={`confetti-gutter ${confettiClass} px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
                 i < tiers.length - 1 ? "border-b border-white/30" : ""
               } ${
                 isCurrent
@@ -351,6 +352,19 @@ export default function HomePage() {
   );
 }
 
+function confettiClassFor(rank: string): string {
+  switch (rank) {
+    case "Top 10":       return "confetti-t10";
+    case "Top 100":      return "confetti-t100";
+    case "Top 1,000":    return "confetti-t1k";
+    case "Top 10,000":   return "confetti-t10k";
+    case "Top 25,000":   return "confetti-t25k";
+    case "Top 50,000":   return "confetti-t50k";
+    case "All claimers": return "confetti-tall";
+    default:             return "";
+  }
+}
+
 function tabLabel(t: Tab): string {
   switch (t) {
     case "breakdown":
@@ -400,7 +414,7 @@ function DDayStrip() {
   const wave1 = KEY_DATES.filter((d) => d.wave === 1).sort((a, b) => a.iso.localeCompare(b.iso));
   const wave2 = KEY_DATES.filter((d) => d.wave === 2).sort((a, b) => a.iso.localeCompare(b.iso));
   return (
-    <section className="mb-8 space-y-4">
+    <section className="mb-8 space-y-2">
       <WaveTimeline
         title="Wave 1 · Loyalty drop"
         sub="~15–20% of supply · paid on weighted volume (wV)"
@@ -451,15 +465,19 @@ function WaveTimeline({
 }) {
   const cols = Math.max(dates.length, 1);
   return (
-    <div className="border border-white/30 p-3 sm:p-4">
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-1">
-        <span className="text-xs font-bold uppercase tracking-widest text-white">{title}</span>
-        <span className="text-[10px] uppercase tracking-widest text-muted">{sub}</span>
+    <div className="border border-white/30 px-3 py-2 sm:px-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white sm:text-xs">
+          {title}
+        </span>
+        <span className="text-[9px] uppercase tracking-widest text-muted sm:text-[10px]">
+          {sub}
+        </span>
       </div>
-      <div className="relative px-1 py-4">
+      <div className="relative px-1 py-2">
         <div className="absolute left-1 right-1 top-1/2 h-px -translate-y-1/2 bg-white/30" />
         <div
-          className="relative grid gap-2"
+          className="relative grid gap-1"
           style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
         >
           {dates.map((d) => {
@@ -468,26 +486,25 @@ function WaveTimeline({
             const fmt = new Date(d.iso + "T00:00:00").toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
-              year: "2-digit",
             });
             return (
-              <div key={d.iso} title={d.note} className="flex flex-col items-center text-center">
-                <div className="text-[9px] font-semibold uppercase tracking-widest text-muted sm:text-[10px]">
+              <div key={d.iso} title={d.note} className="flex flex-col items-center text-center leading-tight">
+                <div className="text-[8px] font-semibold uppercase tracking-widest text-muted sm:text-[9px]">
                   {d.label}
                 </div>
                 <div
-                  className={`my-2 h-3 w-3 rotate-45 border ${
+                  className={`my-1 h-2 w-2 rotate-45 border ${
                     d.highlight ? "border-white bg-white" : "border-white/60 bg-bg"
                   }`}
                 />
                 <div
-                  className={`text-base font-bold sm:text-lg ${
+                  className={`text-xs font-bold sm:text-sm ${
                     d.highlight ? "text-white" : "text-white/80"
                   }`}
                 >
                   {passed ? "PAST" : `D-${days}`}
                 </div>
-                <div className="text-[9px] uppercase tracking-widest text-muted sm:text-[10px]">
+                <div className="text-[8px] uppercase tracking-widest text-muted sm:text-[9px]">
                   {fmt}
                 </div>
               </div>

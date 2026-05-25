@@ -96,3 +96,100 @@ input[type="number"] {
 .logo-idle-pulse {
   animation: logo-idle-pulse 2.4s ease-in-out infinite;
 }
+
+/* Tier confetti backgrounds — painted into left/right gutters via ::before/::after.
+   Each tier has a different pattern, density, and palette so the prestige
+   gradient is visible at a glance. Patterns are pure CSS radial-gradients so
+   they render at zero asset cost. */
+
+.confetti-gutter {
+  position: relative;
+}
+.confetti-gutter::before,
+.confetti-gutter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7%;
+  pointer-events: none;
+  opacity: 0.95;
+}
+.confetti-gutter::before { left: 0; }
+.confetti-gutter::after  { right: 0; transform: scaleX(-1); }
+
+/* TOP 10 — dense gold + silver burst, big confetti */
+.confetti-t10::before, .confetti-t10::after {
+  background-image:
+    radial-gradient(circle at 20% 18%, #ffd76a 2.2px, transparent 2.6px),
+    radial-gradient(circle at 70% 30%, #fff2c2 1.8px, transparent 2.2px),
+    radial-gradient(circle at 35% 55%, #f5a623 2.4px, transparent 2.8px),
+    radial-gradient(circle at 80% 65%, #e2e6ee 1.6px, transparent 2px),
+    radial-gradient(circle at 50% 82%, #ffd76a 2px, transparent 2.4px);
+  background-size: 60px 60px;
+}
+
+/* TOP 100 — gold + warm spark, medium density */
+.confetti-t100::before, .confetti-t100::after {
+  background-image:
+    radial-gradient(circle at 25% 25%, #ffd76a 1.8px, transparent 2.2px),
+    radial-gradient(circle at 70% 55%, #f5a623 1.6px, transparent 2px),
+    radial-gradient(circle at 45% 78%, #fff2c2 1.4px, transparent 1.8px);
+  background-size: 64px 64px;
+}
+
+/* TOP 1K — silver + cool, lighter */
+.confetti-t1k::before, .confetti-t1k::after {
+  background-image:
+    radial-gradient(circle at 30% 20%, #d6dbe6 1.6px, transparent 2px),
+    radial-gradient(circle at 65% 60%, #a9b1c4 1.4px, transparent 1.8px),
+    radial-gradient(circle at 40% 80%, #e2e6ee 1.4px, transparent 1.8px);
+  background-size: 72px 72px;
+}
+
+/* TOP 10K — light blue dust */
+.confetti-t10k::before, .confetti-t10k::after {
+  background-image:
+    radial-gradient(circle at 25% 30%, #6082dc 1.3px, transparent 1.7px),
+    radial-gradient(circle at 70% 65%, #8aa3e8 1.1px, transparent 1.5px);
+  background-size: 80px 80px;
+}
+
+/* TOP 25K — softer blue, sparse */
+.confetti-t25k::before, .confetti-t25k::after {
+  background-image:
+    radial-gradient(circle at 35% 40%, #6b7390 1.1px, transparent 1.5px),
+    radial-gradient(circle at 65% 75%, #4d556e 1px, transparent 1.4px);
+  background-size: 90px 90px;
+}
+
+/* TOP 50K — very faint grey speckle */
+.confetti-t50k::before, .confetti-t50k::after {
+  background-image:
+    radial-gradient(circle at 40% 50%, #555c70 1px, transparent 1.4px);
+  background-size: 100px 100px;
+}
+
+/* ALL CLAIMERS — barely-there grey dust */
+.confetti-tall::before, .confetti-tall::after {
+  background-image:
+    radial-gradient(circle at 50% 50%, #2c3142 0.9px, transparent 1.3px);
+  background-size: 120px 120px;
+  opacity: 0.6;
+}
+
+/* Confetti should sit behind the row content. */
+.confetti-gutter > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* On the highlighted "you" row, the row swaps to bg-white; soften gutters there
+   so they read as embedded decoration not garish noise. */
+.bg-white .confetti-gutter::before,
+.bg-white.confetti-gutter::before,
+.bg-white .confetti-gutter::after,
+.bg-white.confetti-gutter::after {
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+}
