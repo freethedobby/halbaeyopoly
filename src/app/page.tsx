@@ -255,7 +255,21 @@ export default function HomePage() {
           />
           <StatCard
             label="Tier"
-            valueNode={tier ? <span className="value-pop">{tier.rank}</span> : "—"}
+            valueNode={
+              tier ? (
+                <span className="value-pop inline-flex items-baseline gap-2">
+                  {tier.rank}
+                  <span
+                    title="Not your Polymarket leaderboard rank. This is an estimated airdrop-tier bucket from points = volume + PnL + account age + active weeks + trade count + ... Drag the Weights tab to match other models (e.g. set everything except volume to 0 to roughly mirror Polymarket's volume leaderboard)."
+                    className="cursor-help border border-white/40 px-1.5 text-[10px] font-normal text-muted hover:text-white"
+                  >
+                    ?
+                  </span>
+                </span>
+              ) : (
+                "—"
+              )
+            }
             sub={tier ? `≥ ${fmt0(tier.minTokens)} tokens` : "—"}
             borderLeft
           />
