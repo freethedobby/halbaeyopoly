@@ -106,6 +106,8 @@ export default function HomePage() {
   }
 
   return (
+    <>
+      <StarField tier={tier?.rank ?? null} key={`${tier?.rank ?? "none"}-${burstKey}`} />
     <main className="relative z-10 mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
       <header className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
@@ -226,29 +228,34 @@ export default function HomePage() {
       </section>
 
       {/* RESULT PANEL — pinned */}
-      <section className="mb-2 border border-white">
+      <section className="relative mb-2 border border-white">
+        {loading && <div className="dimmer" />}
         <div className="border-b border-white px-5 py-2 text-[10px] uppercase tracking-widest text-muted">
           Result
         </div>
 
         {/* Top stats */}
         <div className="grid grid-cols-1 border-b border-white md:grid-cols-4">
-          <StatCard label="Estimated tokens" value={result ? fmt0(result.estimatedTokens) : "—"} sub="$POLY" />
+          <StatCard
+            label="Estimated tokens"
+            valueNode={result ? <CountUp value={result.estimatedTokens} format={fmt0} className="value-pop" /> : "—"}
+            sub="$POLY"
+          />
           <StatCard
             label="Estimated value"
-            value={result ? fmtUsd(result.estimatedValueUsd) : "—"}
+            valueNode={result ? <CountUp value={result.estimatedValueUsd} format={fmtUsd} className="value-pop" /> : "—"}
             sub={`@ ${fmtPrice(price)}/token`}
             borderLeft
           />
           <StatCard
             label="Total points"
-            value={result ? fmt0(result.totalPoints) : "—"}
+            valueNode={result ? <CountUp value={result.totalPoints} format={fmt0} className="value-pop" /> : "—"}
             sub={result ? `${result.poolSharePct.toFixed(4)}% of pool` : "—"}
             borderLeft
           />
           <StatCard
             label="Tier"
-            value={tier ? tier.rank : "—"}
+            valueNode={tier ? <span className="value-pop">{tier.rank}</span> : "—"}
             sub={tier ? `≥ ${fmt0(tier.minTokens)} tokens` : "—"}
             borderLeft
           />
@@ -264,13 +271,12 @@ export default function HomePage() {
         </div>
         {tiers.map((t, i) => {
           const isCurrent = tier?.rank === t.rank;
-          const confettiClass = confettiClassFor(t.rank);
           return (
             <div
-              key={`${t.rank}-${isCurrent ? burstKey : 0}`}
-              className={`confetti-gutter ${confettiClass} px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
+              key={t.rank}
+              className={`px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
                 i < tiers.length - 1 ? "border-b border-white/30" : ""
-              } ${isCurrent ? "confetti-burst" : ""} ${
+              } ${
                 isCurrent
                   ? "relative z-10 -my-px scale-[1.01] bg-white text-black shadow-[0_0_0_2px_white,inset_0_0_0_1px_black]"
                   : ""
@@ -355,20 +361,60 @@ export default function HomePage() {
         hypothetical $POLY airdrop. $POLY has not launched — estimate only.
       </footer>
     </main>
+    </>
   );
 }
 
-function confettiClassFor(rank: string): string {
-  switch (rank) {
-    case "Top 10":       return "confetti-t10";
-    case "Top 100":      return "confetti-t100";
-    case "Top 1,000":    return "confetti-t1k";
-    case "Top 10,000":   return "confetti-t10k";
-    case "Top 25,000":   return "confetti-t25k";
-    case "Top 50,000":   return "confetti-t50k";
-    case "All claimers": return "confetti-tall";
-    default:             return "";
-  }
+const TIER_STARS: Record<string, { count: number; palette: string[]; sizeRange: [number, number] }> = {
+  "Top 10":       { count: 220, palette: ["#ffd76a", "#f5a623", "#fff2c2", "#ffaa00", "#ff7e00"], sizeRange: [3, 9] },
+  "Top 100":      { count: 150, palette: ["#ffd76a", "#fff2c2", "#f5a623", "#e2e6ee"], sizeRange: [3, 7] },
+  "Top 1,000":    { count: 110, palette: ["#e2e6ee", "#a9b1c4", "#d6dbe6", "#9aa3bd"], sizeRange: [2, 6] },
+  "Top 10,000":   { count: 80,  palette: ["#8aa3e8", "#6082dc", "#5b9bd5", "#aac3ff"], sizeRange: [2, 5] },
+  "Top 25,000":   { count: 55,  palette: ["#6b7390", "#4d556e", "#7c8aa8"], sizeRange: [2, 4] },
+  "Top 50,000":   { count: 35,  palette: ["#555c70", "#4d556e"], sizeRange: [2, 4] },
+  "All claimers": { count: 22,  palette: ["#3a4258", "#2c3550"], sizeRange: [1, 3] },
+};
+const DEFAULT_STARS = { count: 40, palette: ["#6b7390", "#4d556e", "#5b6a8a"], sizeRange: [2, 4] as [number, number] };
+
+function StarField({ tier }: { tier: string | null }) {
+  const cfg = tier ? TIER_STARS[tier] ?? DEFAULT_STARS : DEFAULT_STARS;
+  const stars = useMemo(() => {
+    const out: Array<{
+      top: number; left: number; size: number; color: string; delay: number; duration: number;
+    }> = [];
+    for (let i = 0; i < cfg.count; i++) {
+      out.push({
+        top: Math.random() * 100,
+        left: Math.random() * 100,
+        size: cfg.sizeRange[0] + Math.random() * (cfg.sizeRange[1] - cfg.sizeRange[0]),
+        color: cfg.palette[Math.floor(Math.random() * cfg.palette.length)],
+        delay: -Math.random() * 3,        // negative delay so they start mid-cycle
+        duration: 2 + Math.random() * 3,  // 2-5s twinkle
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tier]);
+  return (
+    <div className="star-bg" aria-hidden>
+      {stars.map((s, i) => (
+        <span
+          key={i}
+          className="star"
+          style={{
+            top: `${s.top}%`,
+            left: `${s.left}%`,
+            width: `${s.size}px`,
+            height: `${s.size}px`,
+            background: s.color,
+            boxShadow: `0 0 ${s.size * 1.5}px ${s.color}`,
+            animationDelay: `${s.delay}s`,
+            animationDuration: `${s.duration}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function tabLabel(t: Tab): string {
@@ -622,21 +668,57 @@ function IconLink({
   );
 }
 
+function useAnimatedNumber(target: number, durationMs = 700): number {
+  const [val, setVal] = useState(target);
+  const startRef = useMemo(() => ({ from: 0, t0: 0, to: target }), [target]);
+  useEffect(() => {
+    startRef.from = val;
+    startRef.to = target;
+    startRef.t0 = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - startRef.t0) / durationMs);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      const v = startRef.from + (startRef.to - startRef.from) * eased;
+      setVal(v);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, durationMs]);
+  return val;
+}
+
+function CountUp({
+  value,
+  format,
+  className,
+}: {
+  value: number;
+  format: (n: number) => string;
+  className?: string;
+}) {
+  const animated = useAnimatedNumber(value);
+  return <span className={className}>{format(animated)}</span>;
+}
+
 function StatCard({
   label,
-  value,
+  valueNode,
   sub,
   borderLeft,
 }: {
   label: string;
-  value: string;
+  valueNode: React.ReactNode;
   sub: string;
   borderLeft?: boolean;
 }) {
   return (
     <div className={`p-4 sm:p-5 ${borderLeft ? "border-t border-white md:border-l md:border-t-0" : ""}`}>
       <div className="text-xs uppercase tracking-widest text-muted">{label}</div>
-      <div className="mt-2 text-2xl font-semibold sm:mt-3 sm:text-3xl">{value}</div>
+      <div className="mt-2 text-2xl font-semibold sm:mt-3 sm:text-3xl">{valueNode}</div>
       <div className="mt-2 text-xs text-muted">{sub}</div>
     </div>
   );
