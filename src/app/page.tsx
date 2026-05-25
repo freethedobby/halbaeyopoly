@@ -971,7 +971,7 @@ function placeholderRows(): ScoreRow[] {
     { key: "weightedVolume",        label: "Weighted volume",     input: "—", weight: `×${w.weightedVolume.toFixed(2)}`, points: 0 },
     { key: "profitOnly",            label: "PnL (profit only)",   input: "—", weight: `×${w.profitOnly.toFixed(2)}`,     points: 0 },
     { key: "lpRewards",             label: "LP rewards",          input: "—", weight: `×${w.lpRewards.toFixed(2)}`,      points: 0 },
-    { key: "perPrediction",         label: "Total predictions",   input: "—", weight: `×${w.perPrediction}/pred`,        points: 0 },
+    { key: "perPrediction",         label: "Markets traded",      input: "—", weight: `×${w.perPrediction}/market`,      points: 0 },
     { key: "perAccountAgeDay",      label: "Account age",         input: "—", weight: `×${w.perAccountAgeDay}/day`,      points: 0 },
     { key: "perProfileView",        label: "Profile views",       input: "—", weight: `×${w.perProfileView}/view`,       points: 0 },
     { key: "perReferral",           label: "Referrals invited",   input: "—", weight: `×${w.perReferral}/ref`,           points: 0 },

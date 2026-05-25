@@ -1,6 +1,7 @@
 import type { WalletStats } from "./scoring";
 
 const DATA_API = "https://data-api.polymarket.com";
+const GAMMA_API = "https://gamma-api.polymarket.com";
 
 type LeaderboardEntry = {
   proxyWallet?: string;
@@ -128,16 +129,19 @@ function inferCategory(slugOrSlug?: string, eventSlug?: string): string {
 export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const addr = address.toLowerCase().trim();
 
-  const [leaderboardRaw, trades, activity, oldestTrade, oldestActivity] = await Promise.all([
-    getJson<LeaderboardEntry[]>(`${DATA_API}/v1/leaderboard?user=${addr}&timePeriod=ALL`).catch(() => null),
-    fetchAllTrades(addr),
-    fetchAllActivity(addr),
-    // Ask the API directly for the oldest record. The default sort is most-recent
-    // first and the offset is capped at ~3500, so without this call long-lived
-    // wallets report a fake "account age" equal to the truncation window.
-    getJson<Trade[]>(`${DATA_API}/trades?user=${addr}&limit=1&offset=0&takerOnly=false&sortDirection=ASC`).catch(() => null),
-    getJson<ActivityItem[]>(`${DATA_API}/activity?user=${addr}&limit=1&offset=0&sortDirection=ASC`).catch(() => null),
-  ]);
+  const [leaderboardRaw, trades, activity, oldestTrade, oldestActivity, profile, tradedCount] =
+    await Promise.all([
+      getJson<LeaderboardEntry[]>(`${DATA_API}/v1/leaderboard?user=${addr}&timePeriod=ALL`).catch(() => null),
+      fetchAllTrades(addr),
+      fetchAllActivity(addr),
+      // ASC-sorted single record fallback for age when /public-profile fails.
+      getJson<Trade[]>(`${DATA_API}/trades?user=${addr}&limit=1&offset=0&takerOnly=false&sortDirection=ASC`).catch(() => null),
+      getJson<ActivityItem[]>(`${DATA_API}/activity?user=${addr}&limit=1&offset=0&sortDirection=ASC`).catch(() => null),
+      // Authoritative profile from Gamma — gives the real account creation time.
+      getJson<{ createdAt?: string }>(`${GAMMA_API}/public-profile?address=${addr}`).catch(() => null),
+      // Authoritative count of distinct markets traded — the headline number on polymarket.com profiles.
+      getJson<{ traded?: number }>(`${DATA_API}/traded?user=${addr}`).catch(() => null),
+    ]);
 
   const leaderboard: LeaderboardEntry[] = leaderboardRaw ?? [];
   const lb = leaderboard[0];
@@ -148,13 +152,18 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const weightedVolume = lb?.vol ?? tradeVolume;
   const pnl = lb?.pnl ?? 0;
 
-  const tradeCount = trades.length;
-  const avgTradeSize = tradeCount > 0 ? tradeVolume / tradeCount : 0;
+  // Prefer Polymarket's authoritative count of distinct markets traded (the
+  // "predictions" number on the profile page). Falls back to our paged trade
+  // count if /traded fails. trades.length is also used for avg trade size,
+  // categories and weeks since those need per-trade data.
+  const tradeCount = typeof tradedCount?.traded === "number" ? tradedCount.traded : trades.length;
+  const avgTradeSize = trades.length > 0 ? tradeVolume / trades.length : 0;
 
-  // Account age: prefer the explicit ASC-sorted oldest record (covers wallets
-  // that have more trades than the pagination cap). Fall back to the min
-  // timestamp we observed in the fetched pages.
+  // Account age: prefer the explicit profile.createdAt from Gamma (the real
+  // account creation date). Fall back to the oldest record we can find.
+  const createdAtTs = profile?.createdAt ? Math.floor(new Date(profile.createdAt).getTime() / 1000) : Infinity;
   const oldestTs = Math.min(
+    createdAtTs,
     oldestTrade?.[0]?.timestamp ?? Infinity,
     oldestActivity?.[0]?.timestamp ?? Infinity,
     trades.length ? Math.min(...trades.map((t) => t.timestamp)) : Infinity,
