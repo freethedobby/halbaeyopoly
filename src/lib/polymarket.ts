@@ -128,10 +128,15 @@ function inferCategory(slugOrSlug?: string, eventSlug?: string): string {
 export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const addr = address.toLowerCase().trim();
 
-  const [leaderboardRaw, trades, activity] = await Promise.all([
+  const [leaderboardRaw, trades, activity, oldestTrade, oldestActivity] = await Promise.all([
     getJson<LeaderboardEntry[]>(`${DATA_API}/v1/leaderboard?user=${addr}&timePeriod=ALL`).catch(() => null),
     fetchAllTrades(addr),
     fetchAllActivity(addr),
+    // Ask the API directly for the oldest record. The default sort is most-recent
+    // first and the offset is capped at ~3500, so without this call long-lived
+    // wallets report a fake "account age" equal to the truncation window.
+    getJson<Trade[]>(`${DATA_API}/trades?user=${addr}&limit=1&offset=0&takerOnly=false&sortDirection=ASC`).catch(() => null),
+    getJson<ActivityItem[]>(`${DATA_API}/activity?user=${addr}&limit=1&offset=0&sortDirection=ASC`).catch(() => null),
   ]);
 
   const leaderboard: LeaderboardEntry[] = leaderboardRaw ?? [];
@@ -146,15 +151,17 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const tradeCount = trades.length;
   const avgTradeSize = tradeCount > 0 ? tradeVolume / tradeCount : 0;
 
-  // Account age from earliest activity or trade
-  const earliestTs = Math.min(
-    ...[
-      trades.length ? Math.min(...trades.map((t) => t.timestamp)) : Infinity,
-      activity.length ? Math.min(...activity.map((a) => a.timestamp)) : Infinity,
-    ]
+  // Account age: prefer the explicit ASC-sorted oldest record (covers wallets
+  // that have more trades than the pagination cap). Fall back to the min
+  // timestamp we observed in the fetched pages.
+  const oldestTs = Math.min(
+    oldestTrade?.[0]?.timestamp ?? Infinity,
+    oldestActivity?.[0]?.timestamp ?? Infinity,
+    trades.length ? Math.min(...trades.map((t) => t.timestamp)) : Infinity,
+    activity.length ? Math.min(...activity.map((a) => a.timestamp)) : Infinity
   );
-  const accountAgeDays = Number.isFinite(earliestTs)
-    ? Math.max(0, Math.floor((Date.now() / 1000 - earliestTs) / 86400))
+  const accountAgeDays = Number.isFinite(oldestTs)
+    ? Math.max(0, Math.floor((Date.now() / 1000 - oldestTs) / 86400))
     : 0;
 
   // Active weeks: derive from trade timestamps
