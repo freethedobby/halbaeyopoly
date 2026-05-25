@@ -118,6 +118,27 @@ input[type="number"] {
 .confetti-gutter::before { left: 0; }
 .confetti-gutter::after  { right: 0; transform: scaleX(-1); }
 
+/* Confetti drop-in: only plays for ~5s on demand by adding .confetti-burst.
+   Particles fall from above the row and fade to their resting opacity. */
+@keyframes confetti-drop {
+  0%   { opacity: 0; transform: translateY(-60%); }
+  20%  { opacity: 1; }
+  85%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0.95; transform: translateY(0); }
+}
+@keyframes confetti-drop-flip {
+  0%   { opacity: 0; transform: scaleX(-1) translateY(-60%); }
+  20%  { opacity: 1; transform: scaleX(-1) translateY(-30%); }
+  85%  { opacity: 1; transform: scaleX(-1) translateY(0); }
+  100% { opacity: 0.95; transform: scaleX(-1) translateY(0); }
+}
+.confetti-burst::before {
+  animation: confetti-drop 5s ease-out 1;
+}
+.confetti-burst::after {
+  animation: confetti-drop-flip 5s ease-out 1;
+}
+
 /* TOP 10 — dense gold + silver burst, big confetti */
 .confetti-t10::before, .confetti-t10::after {
   background-image:

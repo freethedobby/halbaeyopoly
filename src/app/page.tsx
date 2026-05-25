@@ -76,6 +76,12 @@ export default function HomePage() {
 
   const tier = result ? getTier(result.estimatedTokens, economics) : null;
   const tiers = useMemo(() => scaledTiers(economics), [economics]);
+
+  // Trigger a 5-second confetti burst whenever the user lands on a new tier.
+  const [burstKey, setBurstKey] = useState(0);
+  useEffect(() => {
+    if (tier) setBurstKey((k) => k + 1);
+  }, [tier?.rank]);
   const supply = airdropSupply(economics);
   const price = tokenPriceUsd(economics);
 
@@ -261,10 +267,10 @@ export default function HomePage() {
           const confettiClass = confettiClassFor(t.rank);
           return (
             <div
-              key={t.rank}
+              key={`${t.rank}-${isCurrent ? burstKey : 0}`}
               className={`confetti-gutter ${confettiClass} px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
                 i < tiers.length - 1 ? "border-b border-white/30" : ""
-              } ${
+              } ${isCurrent ? "confetti-burst" : ""} ${
                 isCurrent
                   ? "relative z-10 -my-px scale-[1.01] bg-white text-black shadow-[0_0_0_2px_white,inset_0_0_0_1px_black]"
                   : ""
@@ -411,45 +417,64 @@ function daysUntil(iso: string): number {
 }
 
 function DDayStrip() {
+  const [open, setOpen] = useState(false);
   const wave1 = KEY_DATES.filter((d) => d.wave === 1).sort((a, b) => a.iso.localeCompare(b.iso));
   const wave2 = KEY_DATES.filter((d) => d.wave === 2).sort((a, b) => a.iso.localeCompare(b.iso));
+  const headlineDays = daysUntil("2026-07-09");
+  const headlineLabel = headlineDays < 0 ? "PAST" : `D-${headlineDays}`;
+
   return (
     <section className="mb-8 space-y-2">
-      <WaveTimeline
-        title="Wave 1 · Loyalty drop"
-        sub="~15–20% of supply · paid on weighted volume (wV)"
-        dates={wave1}
-      />
-      <WaveTimeline
-        title="Wave 2 · New season"
-        sub="~10–15% of supply · the “large future rewards” Mustafa dangled"
-        dates={wave2}
-      />
+      <button
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 border border-white/30 px-3 py-2 text-left text-xs uppercase tracking-widest text-muted hover:text-white sm:px-4"
+      >
+        <span className="truncate">
+          <span className="font-bold text-white">Timeline</span> · $POLY TGE{" "}
+          <span className="text-white">{headlineLabel}</span> · two-wave thesis
+        </span>
+        <span className="text-white">{open ? "−" : "+"}</span>
+      </button>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted">
-        <span>
-          Combined call: <span className="text-white">~25–35% of supply</span> — land-grab ahead of
-          Kalshi and the US relaunch.
-        </span>
-        <span className="flex gap-3">
-          <a
-            href={THESIS_JULY9_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
-          >
-            ▶ Why July 9?
-          </a>
-          <a
-            href={THESIS_TWO_WAVE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
-          >
-            ▶ Two-wave thesis
-          </a>
-        </span>
-      </div>
+      {open && (
+        <div className="space-y-2">
+          <WaveTimeline
+            title="Wave 1 · Loyalty drop"
+            sub="~15–20% of supply · paid on weighted volume (wV)"
+            dates={wave1}
+          />
+          <WaveTimeline
+            title="Wave 2 · New season"
+            sub="~10–15% of supply · the “large future rewards” Mustafa dangled"
+            dates={wave2}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted">
+            <span>
+              Combined call: <span className="text-white">~25–35% of supply</span> — land-grab
+              ahead of Kalshi and the US relaunch.
+            </span>
+            <span className="flex gap-3">
+              <a
+                href={THESIS_JULY9_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
+              >
+                ▶ Why July 9?
+              </a>
+              <a
+                href={THESIS_TWO_WAVE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
+              >
+                ▶ Two-wave thesis
+              </a>
+            </span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
