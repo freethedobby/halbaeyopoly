@@ -370,14 +370,22 @@ type KeyDate = {
   label: string;
   iso: string; // YYYY-MM-DD
   note: string;
+  wave: 1 | 2;
   highlight?: boolean;
 };
 
+// TODO: paste the real "two-wave" X thesis URL once posted.
+const THESIS_TWO_WAVE_URL = "https://x.com/Dobbyisbad";
+const THESIS_JULY9_URL = "https://x.com/Dobbyisbad/status/2056008919945027755?s=20";
+
+// Wave 1: loyalty drop tied to the World Cup window (Mustafa's calendar dot).
+// Wave 2: "large future rewards" — new season catching post-WC + Midterms wallets.
 const KEY_DATES: KeyDate[] = [
-  { label: "$POLY TGE (predicted)", iso: "2026-07-09", note: "World Cup rest day between R16 and QFs — calendar dot on Mustafa's blurred desk shot.", highlight: true },
-  { label: "World Cup R16 start", iso: "2026-07-07", note: "Round of 16 kicks off." },
-  { label: "World Cup Final", iso: "2026-07-19", note: "Tournament wraps." },
-  { label: "US Midterms", iso: "2026-11-03", note: "Largest political-prediction event of the year." },
+  { label: "World Cup R16",     iso: "2026-07-07", note: "Round of 16 kicks off.", wave: 1 },
+  { label: "$POLY TGE",         iso: "2026-07-09", note: "Predicted Wave 1 drop — World Cup rest day between R16 and QFs. Calendar dot on Mustafa's blurred desk shot.", wave: 1, highlight: true },
+  { label: "World Cup Final",   iso: "2026-07-19", note: "Tournament wraps.", wave: 1 },
+  { label: "Wave 2 season",     iso: "2026-11-01", note: "Predicted new farming season around the US Midterms — catches the post-WC flood on the new wV system.", wave: 2, highlight: true },
+  { label: "US Midterms",       iso: "2026-11-03", note: "Largest political-prediction event of the year.", wave: 2 },
 ];
 
 function daysUntil(iso: string): number {
@@ -389,16 +397,72 @@ function daysUntil(iso: string): number {
 }
 
 function DDayStrip() {
-  // Sort by date so the timeline reads left → right chronologically.
-  const sorted = [...KEY_DATES].sort((a, b) => a.iso.localeCompare(b.iso));
+  const wave1 = KEY_DATES.filter((d) => d.wave === 1).sort((a, b) => a.iso.localeCompare(b.iso));
+  const wave2 = KEY_DATES.filter((d) => d.wave === 2).sort((a, b) => a.iso.localeCompare(b.iso));
   return (
-    <section className="mb-8">
-      {/* Horizontal timeline */}
-      <div className="relative px-1 py-6">
-        {/* baseline */}
+    <section className="mb-8 space-y-4">
+      <WaveTimeline
+        title="Wave 1 · Loyalty drop"
+        sub="~15–20% of supply · paid on weighted volume (wV)"
+        dates={wave1}
+      />
+      <WaveTimeline
+        title="Wave 2 · New season"
+        sub="~10–15% of supply · the “large future rewards” Mustafa dangled"
+        dates={wave2}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted">
+        <span>
+          Combined call: <span className="text-white">~25–35% of supply</span> — land-grab ahead of
+          Kalshi and the US relaunch.
+        </span>
+        <span className="flex gap-3">
+          <a
+            href={THESIS_JULY9_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
+          >
+            ▶ Why July 9?
+          </a>
+          <a
+            href={THESIS_TWO_WAVE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
+          >
+            ▶ Two-wave thesis
+          </a>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function WaveTimeline({
+  title,
+  sub,
+  dates,
+}: {
+  title: string;
+  sub: string;
+  dates: KeyDate[];
+}) {
+  const cols = Math.max(dates.length, 1);
+  return (
+    <div className="border border-white/30 p-3 sm:p-4">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-1">
+        <span className="text-xs font-bold uppercase tracking-widest text-white">{title}</span>
+        <span className="text-[10px] uppercase tracking-widest text-muted">{sub}</span>
+      </div>
+      <div className="relative px-1 py-4">
         <div className="absolute left-1 right-1 top-1/2 h-px -translate-y-1/2 bg-white/30" />
-        <div className="relative grid grid-cols-4 gap-2">
-          {sorted.map((d) => {
+        <div
+          className="relative grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {dates.map((d) => {
             const days = daysUntil(d.iso);
             const passed = days < 0;
             const fmt = new Date(d.iso + "T00:00:00").toLocaleDateString("en-US", {
@@ -416,27 +480,22 @@ function DDayStrip() {
                     d.highlight ? "border-white bg-white" : "border-white/60 bg-bg"
                   }`}
                 />
-                <div className={`text-base font-bold sm:text-lg ${d.highlight ? "text-white" : "text-white/80"}`}>
+                <div
+                  className={`text-base font-bold sm:text-lg ${
+                    d.highlight ? "text-white" : "text-white/80"
+                  }`}
+                >
                   {passed ? "PAST" : `D-${days}`}
                 </div>
-                <div className="text-[9px] uppercase tracking-widest text-muted sm:text-[10px]">{fmt}</div>
+                <div className="text-[9px] uppercase tracking-widest text-muted sm:text-[10px]">
+                  {fmt}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
-
-      <div className="mt-1 text-right text-[10px] uppercase tracking-widest text-muted">
-        <a
-          href="https://x.com/Dobbyisbad/status/2056008919945027755?s=20"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white"
-        >
-          ▶ Why July 9?
-        </a>
-      </div>
-    </section>
+    </div>
   );
 }
 
