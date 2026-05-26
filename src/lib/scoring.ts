@@ -10,6 +10,10 @@ export type WalletStats = {
   consecutiveActiveWeeks: number;
   categoryDiversity: number;
   avgTradeSize: number;
+  // Activity metrics
+  activeDays: number;             // distinct YYYY-MM-DD that have at least one trade
+  daysSinceLastTrade: number;     // 0 = traded today; large = currently idle
+  longestIdleStretch: number;     // max gap (in days) between consecutive trade timestamps
 };
 
 export type Weights = {
@@ -23,6 +27,8 @@ export type Weights = {
   perConsecutiveWeek: number;
   perCategory: number;
   perAvgTradeSizeDollar: number;
+  // Activity / retention
+  perActiveDay: number;
   xMultiplier: number;
 };
 
@@ -67,6 +73,9 @@ export const DEFAULT_WEIGHTS: Weights = {
   perConsecutiveWeek: 2000,
   perCategory: 250,
   perAvgTradeSizeDollar: 1,
+  // Each distinct day with at least one trade. Loyalty signal that's harder
+  // to game than weeks (a single trade per day counts as much as 100).
+  perActiveDay: 100,
   xMultiplier: 1.15,
 };
 
@@ -81,6 +90,7 @@ export const SLIDER_CONFIG: Record<keyof Weights, { label: string; min: number; 
   perConsecutiveWeek:    { label: "Points per consecutive week",   min: 0, max: 5000, step: 50  },
   perCategory:           { label: "Points per category",           min: 0, max: 2000, step: 10  },
   perAvgTradeSizeDollar: { label: "Points per $ avg trade size",   min: 0, max: 50,   step: 1   },
+  perActiveDay:          { label: "Points per active day",         min: 0, max: 500,  step: 10  },
   xMultiplier:           { label: "X-connected multiplier",        min: 1, max: 2,    step: 0.05 },
 };
 
@@ -88,6 +98,8 @@ export type Economics = {
   airdropPct: number;        // 5..35 (percent of 1B total supply allocated to airdrop)
   fdvUsd: number;            // 5e9..100e9
 };
+
+export const MAX_TOKENS_PER_WALLET = 100_000;
 
 export const TOTAL_SUPPLY = 1_000_000_000;
 
@@ -101,8 +113,10 @@ export const ECONOMICS_CONFIG = {
   fdvUsd:     { label: "FDV (fully diluted)", min: 5e9, max: 100e9, step: 1e9,  unit: "$" },
 };
 
-// Baseline supply the tier ladder was calibrated against (310M tokens).
-const BASELINE_AIRDROP_SUPPLY = 310_000_000;
+// Baseline supply the tier ladder was calibrated against. At airdropPct=20%
+// (the default), this yields scale=1 so tier mins read exactly as the
+// constants in TIERS.
+const BASELINE_AIRDROP_SUPPLY = 200_000_000;
 
 export function airdropSupply(e: Economics): number {
   return Math.round(TOTAL_SUPPLY * (e.airdropPct / 100));
@@ -138,18 +152,28 @@ export type Tier = {
 // Anchored on Hyperliquid HYPE genesis distribution:
 //   max 1,975,127 · p99 58,318 · p75 380 · p50 64 · p25 15 · p10 4.3 · min 0.11
 // Scaled up ~1.5× for a hypothetical $POLY airdrop of 310M tokens.
+// Tier ladder is now capped at the per-wallet maximum (100k $POLY) so the
+// top tier is reachable. Each min/median/max is calibrated against a real
+// volume-only score: see POINTS_ANCHORS below for the mapping table.
 export const TIERS: Tier[] = [
-  { rank: "Top 10",       cohortSize: 10,     minTokens: 500_000, medianTokens: 950_000, maxTokens: 1_975_127 },
-  { rank: "Top 100",      cohortSize: 100,    minTokens: 100_000, medianTokens: 220_000, maxTokens: 500_000   },
-  { rank: "Top 1,000",    cohortSize: 1_000,  minTokens: 15_000,  medianTokens: 38_000,  maxTokens: 100_000   },
-  { rank: "Top 10,000",   cohortSize: 10_000, minTokens: 1_500,   medianTokens: 5_500,   maxTokens: 15_000    },
-  { rank: "Top 25,000",   cohortSize: 25_000, minTokens: 380,     medianTokens: 800,     maxTokens: 1_500     },
-  { rank: "Top 50,000",   cohortSize: 50_000, minTokens: 65,      medianTokens: 180,     maxTokens: 380       },
-  { rank: "All claimers", cohortSize: 100_000, minTokens: 1,       medianTokens: 15,      maxTokens: 65        },
+  { rank: "Top 10",       cohortSize: 10,     minTokens: 60_000,  medianTokens: 85_000,  maxTokens: 100_000 },
+  { rank: "Top 100",      cohortSize: 100,    minTokens: 30_000,  medianTokens: 45_000,  maxTokens: 60_000  },
+  { rank: "Top 1,000",    cohortSize: 1_000,  minTokens: 10_000,  medianTokens: 18_000,  maxTokens: 30_000  },
+  { rank: "Top 10,000",   cohortSize: 10_000, minTokens: 1_500,   medianTokens: 4_500,   maxTokens: 10_000  },
+  { rank: "Top 25,000",   cohortSize: 25_000, minTokens: 380,     medianTokens: 800,     maxTokens: 1_500   },
+  { rank: "Top 50,000",   cohortSize: 50_000, minTokens: 65,      medianTokens: 180,     maxTokens: 380     },
+  { rank: "All claimers", cohortSize: 100_000, minTokens: 1,       medianTokens: 15,      maxTokens: 65      },
 ];
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+// Linear ramp: idle <=30d => 1.0, idle >=180d => 0.3. Smooth in between.
+export function idleDecayFactor(daysIdle: number): number {
+  if (daysIdle <= 30) return 1;
+  if (daysIdle >= 180) return 0.3;
+  return 1 - ((daysIdle - 30) / (180 - 30)) * 0.7;
+}
 
 export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, economics: Economics = DEFAULT_ECONOMICS): ScoreResult {
   const profitOnly = Math.max(0, stats.profitOnly);
@@ -164,19 +188,29 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
   const ptsWeeks = stats.consecutiveActiveWeeks * weights.perConsecutiveWeek;
   const ptsCategories = stats.categoryDiversity * weights.perCategory;
   const ptsAvgTrade = stats.avgTradeSize * weights.perAvgTradeSizeDollar;
+  const ptsActiveDays = stats.activeDays * weights.perActiveDay;
 
   const subtotal =
     ptsVolume + ptsProfit + ptsLp + ptsPredictions + ptsAge + ptsViews + ptsReferrals +
-    ptsWeeks + ptsCategories + ptsAvgTrade;
+    ptsWeeks + ptsCategories + ptsAvgTrade + ptsActiveDays;
 
-  const multiplier = ui.xConnected ? weights.xMultiplier : 1;
-  const totalPoints = Math.round(subtotal * multiplier);
+  // Idle decay: wallets that haven't traded in a while shouldn't get full
+  // credit. Linear ramp from 1.0 (idle <=30d) down to 0.3 (idle >=180d).
+  const idleDecay = idleDecayFactor(stats.daysSinceLastTrade);
+
+  const xMult = ui.xConnected ? weights.xMultiplier : 1;
+  const totalPoints = Math.round(subtotal * xMult * idleDecay);
 
   // Token allocation is derived from the user's points falling into a Hyperliquid-style
   // power-law curve. We approximate using a piecewise log-linear interpolation
   // anchored on the tier thresholds.
   const scale = scaleFactor(economics);
-  const estimatedTokens = Math.round(tokensFromPoints(totalPoints) * scale);
+  // Hard cap on the per-wallet allocation. Real airdrops almost always have
+  // one — Hyperliquid capped individual claims at ~1.97M HYPE. We cap at
+  // 100k $POLY by default, which keeps the tier curve from blowing up at the
+  // top end and protects the median wallet's slice.
+  const cappedTokens = Math.min(MAX_TOKENS_PER_WALLET, tokensFromPoints(totalPoints) * scale);
+  const estimatedTokens = Math.round(cappedTokens);
   const poolSharePct = (estimatedTokens / airdropSupply(economics)) * 100;
   const estimatedValueUsd = estimatedTokens * tokenPriceUsd(economics);
 
@@ -191,8 +225,12 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
     { key: "perConsecutiveWeek",    label: "Consecutive weeks",      input: stats.consecutiveActiveWeeks.toLocaleString(),weight: `×${weights.perConsecutiveWeek}/wk`,     points: ptsWeeks },
     { key: "perCategory",           label: "Category diversity",     input: stats.categoryDiversity.toLocaleString(),     weight: `×${weights.perCategory}/cat`,           points: ptsCategories },
     { key: "perAvgTradeSizeDollar", label: "Avg trade size",         input: `$${stats.avgTradeSize.toFixed(2)}`,          weight: `×${weights.perAvgTradeSizeDollar}/$`,   points: ptsAvgTrade },
+    { key: "perActiveDay",          label: "Active days",            input: `${stats.activeDays.toLocaleString()}${stats.daysSinceLastTrade > 0 ? ` (${stats.daysSinceLastTrade}d idle)` : ""}`, weight: `×${weights.perActiveDay}/day`, points: ptsActiveDays },
     { key: "xMultiplier",           label: "X connected",            input: ui.xConnected ? "Yes" : "No",                 weight: `×${weights.xMultiplier.toFixed(2)}`,    points: ui.xConnected ? Math.round(subtotal * (weights.xMultiplier - 1)) : 0, isMultiplier: true },
   ];
+  if (idleDecay < 1) {
+    rows.push({ key: "perActiveDay", label: "Idle decay", input: `${stats.daysSinceLastTrade}d idle`, weight: `×${idleDecay.toFixed(2)}`, points: Math.round(subtotal * (idleDecay - 1)), isMultiplier: true });
+  }
 
   return { totalPoints, estimatedTokens, estimatedValueUsd, poolSharePct, rows };
 }
@@ -215,16 +253,16 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 //   #50,000  | ~$0.4M      | ~320k           | Top 50,000 floor   | 65
 //   #100,000 | ~$0.05M     | ~40k            | All claimers floor | 1
 const POINTS_ANCHORS: Array<[number, number]> = [
-  [0,           0],
-  [40_000,      1],          // ~rank 100k cutoff
-  [320_000,     65],         // ~rank 50k
-  [640_000,     380],        // ~rank 25k
-  [1_300_000,   1_500],      // ~rank 10k floor
-  [2_800_000,   5_500],      // ~rank 5k (median Top 10k)
-  [15_000_000,  15_000],     // ~rank 1k floor
-  [102_000_000, 100_000],    // ~rank 100 floor
-  [368_000_000, 500_000],    // ~rank 10 floor
-  [656_000_000, 1_975_127],  // ~rank 1 (HYPE max scale)
+  [0,             0],
+  [40_000,        1],         // ~rank 100k cutoff
+  [320_000,       65],        // ~rank 50k floor
+  [640_000,       380],       // ~rank 25k floor
+  [1_300_000,     1_500],     // ~rank 10k floor
+  [2_800_000,     4_500],     // ~rank 5k (Top 10k median)
+  [15_000_000,    10_000],    // ~rank 1k floor
+  [102_000_000,   30_000],    // ~rank 100 floor
+  [368_000_000,   60_000],    // ~rank 10 floor
+  [656_000_000,   100_000],   // ~rank 1 (capped)
 ];
 
 function tokensFromPoints(points: number): number {

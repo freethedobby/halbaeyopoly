@@ -177,6 +177,25 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const tradeTimestamps = trades.map((t) => t.timestamp);
   const consecutiveActiveWeeks = longestConsecutiveWeeks(tradeTimestamps);
 
+  // Active days, idle metrics
+  const activeDaySet = new Set<string>();
+  for (const t of trades) {
+    const d = new Date(t.timestamp * 1000);
+    activeDaySet.add(`${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`);
+  }
+  const activeDays = activeDaySet.size;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const latestTradeTs = tradeTimestamps.length ? Math.max(...tradeTimestamps) : 0;
+  const daysSinceLastTrade = latestTradeTs > 0 ? Math.floor((nowSec - latestTradeTs) / 86400) : 0;
+  let longestIdleStretch = 0;
+  if (tradeTimestamps.length > 1) {
+    const sorted = [...tradeTimestamps].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = Math.floor((sorted[i] - sorted[i - 1]) / 86400);
+      if (gap > longestIdleStretch) longestIdleStretch = gap;
+    }
+  }
+
   // Category diversity
   const cats = new Set<string>();
   for (const t of trades) cats.add(inferCategory(t.slug, t.eventSlug));
@@ -200,5 +219,8 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
     consecutiveActiveWeeks,
     categoryDiversity,
     avgTradeSize,
+    activeDays,
+    daysSinceLastTrade,
+    longestIdleStretch,
   };
 }

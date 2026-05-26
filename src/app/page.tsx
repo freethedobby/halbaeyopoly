@@ -978,6 +978,7 @@ function placeholderRows(): ScoreRow[] {
     { key: "perConsecutiveWeek",    label: "Consecutive weeks",   input: "—", weight: `×${w.perConsecutiveWeek}/wk`,     points: 0 },
     { key: "perCategory",           label: "Category diversity",  input: "—", weight: `×${w.perCategory}/cat`,           points: 0 },
     { key: "perAvgTradeSizeDollar", label: "Avg trade size",      input: "—", weight: `×${w.perAvgTradeSizeDollar}/$`,   points: 0 },
+    { key: "perActiveDay",          label: "Active days",         input: "—", weight: `×${w.perActiveDay}/day`,          points: 0 },
     { key: "xMultiplier",           label: "X connected",         input: "—", weight: `×${w.xMultiplier.toFixed(2)}`,    points: 0, isMultiplier: true },
   ];
 }
