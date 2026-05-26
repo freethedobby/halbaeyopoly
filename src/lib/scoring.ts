@@ -101,7 +101,7 @@ export type Economics = {
   fdvUsd: number;            // 5e9..100e9
 };
 
-export const MAX_TOKENS_PER_WALLET = 100_000;
+export const MAX_TOKENS_PER_WALLET = 50_000;
 
 export const TOTAL_SUPPLY = 1_000_000_000;
 
@@ -169,7 +169,7 @@ export const ELIGIBLE_WALLET_COUNT = 30_000;   // legacy reference label
 export const TRACKED_WALLET_COUNT = 100_000;   // legacy reference label
 
 export const TIERS: Tier[] = [
-  { rank: "Whale",       cohortSize: 7_000,   minVolumeUsd: 2_000_000, minTokens: 1_500, medianTokens: 15_000, maxTokens: 100_000 },
+  { rank: "Whale",       cohortSize: 7_000,   minVolumeUsd: 2_000_000, minTokens: 1_500, medianTokens: 10_000, maxTokens: 50_000  },
   { rank: "Pro",         cohortSize: 20_000,  minVolumeUsd:   200_000, minTokens: 250,   medianTokens: 800,    maxTokens: 1_500   },
   { rank: "Trader",      cohortSize: 50_000,  minVolumeUsd:    25_000, minTokens: 30,    medianTokens: 80,     maxTokens: 250     },
   { rank: "Contributor", cohortSize: 100_000, minVolumeUsd:     1_000, minTokens: 5,     medianTokens: 15,     maxTokens: 30      },
@@ -276,25 +276,26 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 //   $500M   ~rank 3       -> 1.5B        -> ~80k POLY
 //   $820M+  rank 1        -> 2.4B+       -> 100k cap
 // Volume × 3 = points, so the volume floor numbers below become the
-// corresponding points anchors. Right column = token floor.
+// corresponding points anchors. Right column = token floor. With the
+// 50k per-wallet cap, the top end is compressed:
 //   $1k    Contributor   -> 3k pts        -> 5 POLY
 //   $25k   Trader        -> 75k pts       -> 30 POLY
 //   $200k  Pro           -> 600k pts      -> 250 POLY
 //   $2M    Whale         -> 6M pts        -> 1.5k POLY
-//   $20M   mid-Whale     -> 60M pts       -> ~10k POLY
-//   $127M  ~rank #100    -> 381M pts      -> ~30k POLY
-//   $500M  ~rank #3      -> 1.5B pts      -> ~80k POLY
-//   $820M  rank #1       -> 2.5B pts      -> 100k cap
+//   $20M   mid-Whale     -> 60M pts       -> ~6k POLY
+//   $127M  ~rank #100    -> 381M pts      -> ~18k POLY
+//   $500M  ~rank #3      -> 1.5B pts      -> ~40k POLY
+//   $820M  rank #1       -> 2.5B pts      -> 50k cap
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
   [3_000,         5],
   [75_000,        30],
   [600_000,       250],
   [6_000_000,     1_500],
-  [60_000_000,    10_000],
-  [381_000_000,   30_000],
-  [1_500_000_000, 80_000],
-  [2_500_000_000, 100_000],
+  [60_000_000,    6_000],
+  [381_000_000,   18_000],
+  [1_500_000_000, 40_000],
+  [2_500_000_000, 50_000],
 ];
 
 function tokensFromPoints(points: number): number {
