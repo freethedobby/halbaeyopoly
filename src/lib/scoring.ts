@@ -197,18 +197,34 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
   return { totalPoints, estimatedTokens, estimatedValueUsd, poolSharePct, rows };
 }
 
-// A reference "median wallet" produces ~10k points under default weights.
-// We anchor 10k points = 65 tokens (HYPE p50) and interpolate the rest in log space.
+// Calibrated against Polymarket's real rank → volume distribution sampled
+// 2026-05 from data-api.polymarket.com/v1/leaderboard?orderBy=VOL&timePeriod=ALL.
+// Each anchor pairs (points, tokens) such that a volume-only score (where
+// points ≈ volume × weights.weightedVolume at the default 0.8 weight) lands a
+// wallet in roughly the same tier as its actual Polymarket leaderboard rank.
+//
+//   Rank     | Vol         | Pts (vol × 0.8) | Tier               | Min tokens
+//   ---------+-------------+-----------------+--------------------+-----------
+//   #1       | $820M       | 656M            | Top 10             | 500k
+//   #10      | $460M       | 368M            | Top 10 floor       | 500k → 1.97M
+//   #100     | $127M       | 102M            | Top 100 floor      | 100k
+//   #1,000   | $19M        | 15M             | Top 1,000 floor    | 15k
+//   #5,000   | $3.5M       | 2.8M            | Top 10k mid        | 5.5k
+//   #10,000  | $1.6M       | 1.3M            | Top 10,000 floor   | 1.5k
+//   #25,000  | ~$0.8M      | ~640k           | Top 25,000 floor   | 380
+//   #50,000  | ~$0.4M      | ~320k           | Top 50,000 floor   | 65
+//   #100,000 | ~$0.05M     | ~40k            | All claimers floor | 1
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,           0],
-  [1_000,       1],
-  [10_000,      65],
-  [50_000,      380],
-  [250_000,     1_500],
-  [1_000_000,   15_000],
-  [5_000_000,   100_000],
-  [50_000_000,  500_000],
-  [500_000_000, 1_975_127],
+  [40_000,      1],          // ~rank 100k cutoff
+  [320_000,     65],         // ~rank 50k
+  [640_000,     380],        // ~rank 25k
+  [1_300_000,   1_500],      // ~rank 10k floor
+  [2_800_000,   5_500],      // ~rank 5k (median Top 10k)
+  [15_000_000,  15_000],     // ~rank 1k floor
+  [102_000_000, 100_000],    // ~rank 100 floor
+  [368_000_000, 500_000],    // ~rank 10 floor
+  [656_000_000, 1_975_127],  // ~rank 1 (HYPE max scale)
 ];
 
 function tokensFromPoints(points: number): number {
