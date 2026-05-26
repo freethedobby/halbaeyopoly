@@ -55,27 +55,29 @@ export type ScoreResult = {
   rows: ScoreRow[];
 };
 
-// Polymarket-skewed defaults: tilts toward people who make MANY predictions and
-// stay active, rather than whales or lucky PnL. Rationale:
-//   - PnL down to ×0.5: profit is partly luck and farmable, so don't over-reward it.
-//   - Volume down to ×0.8: still rewards real economic activity, but less than count.
-//   - Per-prediction up to ×20: the headline metric for prediction-market loyalty.
-//   - Account age ×30, consecutive weeks ×2000: heavy weight on long-term retention.
-//   - Avg trade size demoted to ×1: small frequent trades shouldn't be punished.
+// Volume-first defaults. Volume is the gate (tier eligibility) AND the
+// dominant points contributor. Loyalty / activity signals nudge the payout
+// within the tier band but cannot lift a low-volume wallet into a high tier.
+//
+//   - Volume ×3: the primary input. A $5M Whale earns 15M base points from
+//     volume alone before any other factor.
+//   - PnL ×0.5: profit is partly luck and farmable, keep small.
+//   - Per-market and per-active-day signals: meaningful but capped so a
+//     small wallet's "I traded 200 days" can't catch a Whale's $5M.
+//   - Per-consecutive-week ×500 (was 2000): retention matters, but it
+//     should not single-handedly outweigh real money traded.
 export const DEFAULT_WEIGHTS: Weights = {
-  weightedVolume: 0.8,
+  weightedVolume: 3.0,
   profitOnly: 0.5,
   lpRewards: 3.0,
-  perPrediction: 20,
-  perAccountAgeDay: 30,
+  perPrediction: 10,
+  perAccountAgeDay: 10,
   perProfileView: 10,
   perReferral: 200,
-  perConsecutiveWeek: 2000,
-  perCategory: 250,
+  perConsecutiveWeek: 500,
+  perCategory: 100,
   perAvgTradeSizeDollar: 1,
-  // Each distinct day with at least one trade. Loyalty signal that's harder
-  // to game than weeks (a single trade per day counts as much as 100).
-  perActiveDay: 100,
+  perActiveDay: 30,
   xMultiplier: 1.15,
 };
 
@@ -261,13 +263,25 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 // Calibrated points → tokens curve. Each anchor maps a points score to its
 // estimated $POLY allocation, given that the eligible pool is the top 100k
 // wallets. The right column equals the corresponding TIERS[].minTokens.
+// With weights.weightedVolume = 3 the volume term alone produces these
+// targets per real Polymarket wallet:
+//   $1k     Contributor   -> 3k          -> 0 POLY (tracked)
+//   $50k    Trader        -> 150k        -> 1 POLY (tracked tier won't pay)
+//   $500k   Pro floor     -> 1.5M        -> 250 POLY
+//   $5M     Whale floor   -> 15M         -> 1.5k POLY
+//   $20M    solid Whale   -> 60M         -> ~10k POLY
+//   $127M   ~rank 100     -> 381M        -> ~30k POLY
+//   $500M   ~rank 3       -> 1.5B        -> ~80k POLY
+//   $820M+  rank 1        -> 2.4B+       -> 100k cap
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
-  [40_000,        1],         // Novice floor (top-100k cohort)
-  [600_000,       250],       // Top 30% floor (30k cohort)
-  [1_300_000,     1_500],     // Top 10% floor (10k cohort)
-  [102_000_000,   30_000],    // Top 0.1% floor (100 cohort, ~rank #100)
-  [656_000_000,   100_000],   // Cap (top wallet)
+  [150_000,       1],
+  [1_500_000,     250],       // Pro floor
+  [15_000_000,    1_500],     // Whale floor
+  [60_000_000,    10_000],
+  [381_000_000,   30_000],
+  [1_500_000_000, 80_000],
+  [2_500_000_000, 100_000],   // Cap
 ];
 
 function tokensFromPoints(points: number): number {
