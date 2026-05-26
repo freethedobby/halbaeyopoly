@@ -152,17 +152,21 @@ export type Tier = {
 // Anchored on Hyperliquid HYPE genesis distribution:
 //   max 1,975,127 · p99 58,318 · p75 380 · p50 64 · p25 15 · p10 4.3 · min 0.11
 // Scaled up ~1.5× for a hypothetical $POLY airdrop of 310M tokens.
-// Tier ladder is now capped at the per-wallet maximum (100k $POLY) so the
-// top tier is reachable. Each min/median/max is calibrated against a real
-// volume-only score: see POINTS_ANCHORS below for the mapping table.
+// Eligibility model: only the top ~100k wallets receive any $POLY (matches
+// Hyperliquid's ~94k eligible cohort). Tiers are percentiles within that pool.
+export const ELIGIBLE_WALLET_COUNT = 100_000;
+
+// Percentile-based tier ladder. cohortSize = how many wallets fit in this
+// bucket (cumulative from the top). min/median/maxTokens are calibrated
+// against real Polymarket volume data (see POINTS_ANCHORS).
 export const TIERS: Tier[] = [
-  { rank: "Top 10",       cohortSize: 10,     minTokens: 60_000,  medianTokens: 85_000,  maxTokens: 100_000 },
-  { rank: "Top 100",      cohortSize: 100,    minTokens: 30_000,  medianTokens: 45_000,  maxTokens: 60_000  },
-  { rank: "Top 1,000",    cohortSize: 1_000,  minTokens: 10_000,  medianTokens: 18_000,  maxTokens: 30_000  },
-  { rank: "Top 10,000",   cohortSize: 10_000, minTokens: 1_500,   medianTokens: 4_500,   maxTokens: 10_000  },
-  { rank: "Top 25,000",   cohortSize: 25_000, minTokens: 380,     medianTokens: 800,     maxTokens: 1_500   },
-  { rank: "Top 50,000",   cohortSize: 50_000, minTokens: 65,      medianTokens: 180,     maxTokens: 380     },
-  { rank: "All claimers", cohortSize: 100_000, minTokens: 1,       medianTokens: 15,      maxTokens: 65      },
+  { rank: "Top 0.1%",      cohortSize: 100,     minTokens: 30_000, medianTokens: 60_000, maxTokens: 100_000 },
+  { rank: "Top 1%",        cohortSize: 1_000,   minTokens: 10_000, medianTokens: 18_000, maxTokens: 30_000  },
+  { rank: "Top 5%",        cohortSize: 5_000,   minTokens: 4_500,  medianTokens: 7_000,  maxTokens: 10_000  },
+  { rank: "Top 10%",       cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 2_800,  maxTokens: 4_500   },
+  { rank: "Top 20%",       cohortSize: 20_000,  minTokens: 600,    medianTokens: 1_000,  maxTokens: 1_500   },
+  { rank: "Top 50%",       cohortSize: 50_000,  minTokens: 65,     medianTokens: 250,    maxTokens: 600     },
+  { rank: "Eligible (rest)", cohortSize: 100_000, minTokens: 1,    medianTokens: 25,     maxTokens: 65      },
 ];
 
 const fmtUsd = (n: number) =>
@@ -252,17 +256,19 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 //   #25,000  | ~$0.8M      | ~640k           | Top 25,000 floor   | 380
 //   #50,000  | ~$0.4M      | ~320k           | Top 50,000 floor   | 65
 //   #100,000 | ~$0.05M     | ~40k            | All claimers floor | 1
+// Calibrated points → tokens curve. Each anchor maps a points score to its
+// estimated $POLY allocation, given that the eligible pool is the top 100k
+// wallets. The right column equals the corresponding TIERS[].minTokens.
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
-  [40_000,        1],         // ~rank 100k cutoff
-  [320_000,       65],        // ~rank 50k floor
-  [640_000,       380],       // ~rank 25k floor
-  [1_300_000,     1_500],     // ~rank 10k floor
-  [2_800_000,     4_500],     // ~rank 5k (Top 10k median)
-  [15_000_000,    10_000],    // ~rank 1k floor
-  [102_000_000,   30_000],    // ~rank 100 floor
-  [368_000_000,   60_000],    // ~rank 10 floor
-  [656_000_000,   100_000],   // ~rank 1 (capped)
+  [40_000,        1],         // 100% (eligible-rest floor)
+  [320_000,       65],        // Top 50% floor
+  [800_000,       600],       // Top 20% floor
+  [1_300_000,     1_500],     // Top 10% floor
+  [3_300_000,     4_500],     // Top 5% floor
+  [15_000_000,    10_000],    // Top 1% floor
+  [102_000_000,   30_000],    // Top 0.1% floor
+  [656_000_000,   100_000],   // Cap
 ];
 
 function tokensFromPoints(points: number): number {
@@ -299,10 +305,15 @@ export function scaledTiers(economics: Economics): Tier[] {
   return TIERS.map((t) => scaleTier(t, economics));
 }
 
-export function getTier(estimatedTokens: number, economics: Economics = DEFAULT_ECONOMICS): Tier {
+export function getTier(estimatedTokens: number, economics: Economics = DEFAULT_ECONOMICS): Tier | null {
+  if (estimatedTokens <= 0) return null;
   const scaled = scaledTiers(economics);
   for (const t of scaled) {
     if (estimatedTokens >= t.minTokens) return t;
   }
-  return scaled[scaled.length - 1];
+  return null;
+}
+
+export function isEligible(estimatedTokens: number, economics: Economics = DEFAULT_ECONOMICS): boolean {
+  return getTier(estimatedTokens, economics) !== null;
 }

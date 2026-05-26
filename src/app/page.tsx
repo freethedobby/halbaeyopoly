@@ -13,6 +13,7 @@ import {
   scaledTiers,
   airdropSupply,
   tokenPriceUsd,
+  ELIGIBLE_WALLET_COUNT,
 } from "@/lib/scoring";
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -230,8 +231,19 @@ export default function HomePage() {
       {/* RESULT PANEL — pinned */}
       <section className="relative mb-2 border border-white">
         {loading && <div className="dimmer" />}
-        <div className="border-b border-white px-5 py-2 text-[10px] uppercase tracking-widest text-muted">
-          Result
+        <div className="flex items-center justify-between border-b border-white px-5 py-2 text-[10px] uppercase tracking-widest text-muted">
+          <span>Result</span>
+          {result && (
+            <span
+              className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                tier
+                  ? "border border-white bg-white text-black"
+                  : "border border-white/40 text-muted"
+              }`}
+            >
+              {tier ? `✓ Eligible — ${tier.rank}` : "✗ Not eligible"}
+            </span>
+          )}
         </div>
 
         {/* Top stats */}
@@ -256,28 +268,38 @@ export default function HomePage() {
           <StatCard
             label="Tier"
             valueNode={
-              tier ? (
-                <span className="value-pop inline-flex items-baseline gap-2">
-                  {tier.rank}
-                  <span
-                    title="Not your Polymarket leaderboard rank. This is an estimated airdrop-tier bucket from points = volume + PnL + account age + active weeks + trade count + ... Drag the Weights tab to match other models (e.g. set everything except volume to 0 to roughly mirror Polymarket's volume leaderboard)."
-                    className="cursor-help border border-white/40 px-1.5 text-[10px] font-normal text-muted hover:text-white"
-                  >
-                    ?
+              result ? (
+                tier ? (
+                  <span className="value-pop inline-flex items-baseline gap-2">
+                    {tier.rank}
+                    <span
+                      title="Estimated airdrop-tier bucket from points = volume + PnL + age + active days + ... Drag the Weights tab to model different formulas."
+                      className="cursor-help border border-white/40 px-1.5 text-[10px] font-normal text-muted hover:text-white"
+                    >
+                      ?
+                    </span>
                   </span>
-                </span>
+                ) : (
+                  <span className="value-pop text-2xl text-white/70">Not eligible</span>
+                )
               ) : (
                 "—"
               )
             }
-            sub={tier ? `≥ ${fmt0(tier.minTokens)} tokens` : "—"}
+            sub={
+              result
+                ? tier
+                  ? `Eligible · ≥ ${fmt0(tier.minTokens)} $POLY`
+                  : `Below Top ${fmt0(ELIGIBLE_WALLET_COUNT)} threshold`
+                : "—"
+            }
             borderLeft
           />
         </div>
 
         {/* Tier table — desktop header (hidden on mobile) */}
         <div className="hidden border-b border-white px-5 py-3 text-xs uppercase tracking-widest text-muted sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr]">
-          <div>Tier</div>
+          <div>Tier (within Top {fmt0(ELIGIBLE_WALLET_COUNT)} eligible)</div>
           <div className="text-right">Cohort size</div>
           <div className="text-right">Min $POLY</div>
           <div className="text-right">Median $POLY</div>
