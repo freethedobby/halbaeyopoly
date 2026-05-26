@@ -402,10 +402,10 @@ export default function HomePage() {
 }
 
 const TIER_STARS: Record<string, { count: number; palette: string[]; sizeRange: [number, number] }> = {
-  "Top 1%":          { count: 220, palette: ["#ffd76a", "#f5a623", "#fff2c2", "#ffaa00", "#ff7e00"], sizeRange: [3, 9] },
-  "Top 10%":         { count: 130, palette: ["#e2e6ee", "#a9b1c4", "#d6dbe6", "#9aa3bd"], sizeRange: [2, 6] },
-  "Top 30%":         { count: 70,  palette: ["#8aa3e8", "#6082dc", "#5b9bd5"], sizeRange: [2, 5] },
-  "Eligible (rest)": { count: 35,  palette: ["#555c70", "#4d556e"], sizeRange: [2, 4] },
+  "Top 0.1%": { count: 260, palette: ["#ffd76a", "#f5a623", "#fff2c2", "#ffaa00", "#ff7e00"], sizeRange: [3, 10] },
+  "Top 10%":  { count: 140, palette: ["#e2e6ee", "#a9b1c4", "#d6dbe6", "#9aa3bd"], sizeRange: [2, 6] },
+  "Top 30%":  { count: 75,  palette: ["#8aa3e8", "#6082dc", "#5b9bd5"], sizeRange: [2, 5] },
+  "Novice":   { count: 35,  palette: ["#555c70", "#4d556e"], sizeRange: [2, 4] },
 };
 const DEFAULT_STARS = { count: 40, palette: ["#6b7390", "#4d556e", "#5b6a8a"], sizeRange: [2, 4] as [number, number] };
 

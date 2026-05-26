@@ -160,10 +160,10 @@ export const ELIGIBLE_WALLET_COUNT = 100_000;
 // bucket (cumulative from the top). min/median/maxTokens are calibrated
 // against real Polymarket volume data (see POINTS_ANCHORS).
 export const TIERS: Tier[] = [
-  { rank: "Top 1%",          cohortSize: 1_000,   minTokens: 10_000, medianTokens: 28_000, maxTokens: 100_000 },
-  { rank: "Top 10%",         cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 4_500,  maxTokens: 10_000  },
-  { rank: "Top 30%",         cohortSize: 30_000,  minTokens: 250,    medianTokens: 700,    maxTokens: 1_500   },
-  { rank: "Eligible (rest)", cohortSize: 100_000, minTokens: 1,      medianTokens: 80,     maxTokens: 250     },
+  { rank: "Top 0.1%", cohortSize: 100,     minTokens: 30_000, medianTokens: 55_000, maxTokens: 100_000 },
+  { rank: "Top 10%",  cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 8_000,  maxTokens: 30_000  },
+  { rank: "Top 30%",  cohortSize: 30_000,  minTokens: 250,    medianTokens: 700,    maxTokens: 1_500   },
+  { rank: "Novice",   cohortSize: 100_000, minTokens: 1,      medianTokens: 80,     maxTokens: 250     },
 ];
 
 const fmtUsd = (n: number) =>
@@ -258,10 +258,10 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 // wallets. The right column equals the corresponding TIERS[].minTokens.
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
-  [40_000,        1],         // Eligible-rest floor (100k cohort)
+  [40_000,        1],         // Novice floor (top-100k cohort)
   [600_000,       250],       // Top 30% floor (30k cohort)
   [1_300_000,     1_500],     // Top 10% floor (10k cohort)
-  [15_000_000,    10_000],    // Top 1% floor (1k cohort)
+  [102_000_000,   30_000],    // Top 0.1% floor (100 cohort, ~rank #100)
   [656_000_000,   100_000],   // Cap (top wallet)
 ];
 
