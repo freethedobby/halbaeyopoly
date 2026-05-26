@@ -79,7 +79,12 @@ export default function HomePage() {
   const tier = result && stats
     ? getTier(result.estimatedTokens, stats.weightedVolume, economics)
     : null;
-  const isPaidTier = tier !== null && tier.minTokens > 0;
+  // If the wallet missed every volume floor, zero out the displayed token
+  // figures even though the score function still computes them. The volume
+  // gate is the source of truth for eligibility.
+  const displayedTokens = tier ? result?.estimatedTokens ?? 0 : 0;
+  const displayedValueUsd = tier ? result?.estimatedValueUsd ?? 0 : 0;
+  const displayedPoolPct = tier ? result?.poolSharePct ?? 0 : 0;
   const tiers = useMemo(() => scaledTiers(economics), [economics]);
 
   // Trigger a 5-second confetti burst whenever the user lands on a new tier.
@@ -240,16 +245,12 @@ export default function HomePage() {
           {result && (
             <span
               className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-                isPaidTier
+                tier
                   ? "border border-white bg-white text-black"
                   : "border border-white/40 text-muted"
               }`}
             >
-              {tier
-                ? isPaidTier
-                  ? `✓ ${tier.rank} — eligible`
-                  : `${tier.rank} — tracked (0 $POLY)`
-                : "✗ Not eligible"}
+              {tier ? `✓ ${tier.rank} — eligible` : "✗ Not eligible"}
             </span>
           )}
         </div>
@@ -258,19 +259,19 @@ export default function HomePage() {
         <div className="grid grid-cols-1 border-b border-white md:grid-cols-4">
           <StatCard
             label="Estimated tokens"
-            valueNode={result ? <CountUp value={result.estimatedTokens} format={fmt0} className="value-pop" /> : "—"}
+            valueNode={result ? <CountUp value={displayedTokens} format={fmt0} className="value-pop" /> : "—"}
             sub="$POLY"
           />
           <StatCard
             label="Estimated value"
-            valueNode={result ? <CountUp value={result.estimatedValueUsd} format={fmtUsd} className="value-pop" /> : "—"}
+            valueNode={result ? <CountUp value={displayedValueUsd} format={fmtUsd} className="value-pop" /> : "—"}
             sub={`@ ${fmtPrice(price)}/token`}
             borderLeft
           />
           <StatCard
             label="Total points"
             valueNode={result ? <CountUp value={result.totalPoints} format={fmt0} className="value-pop" /> : "—"}
-            sub={result ? `${result.poolSharePct.toFixed(4)}% of pool` : "—"}
+            sub={result ? `${displayedPoolPct.toFixed(4)}% of pool` : "—"}
             borderLeft
           />
           <StatCard
@@ -296,11 +297,9 @@ export default function HomePage() {
             }
             sub={
               result && stats
-                ? isPaidTier
-                  ? `Eligible · ≥ ${fmtUsd(tier!.minVolumeUsd)} volume`
-                  : tier
-                    ? `Tracked · need ${fmtUsd(tiers[1].minVolumeUsd)} vol to pay`
-                    : `Below ${fmtUsd(tiers[tiers.length - 1].minVolumeUsd)} volume floor`
+                ? tier
+                  ? `Eligible · ≥ ${fmtUsd(tier.minVolumeUsd)} volume`
+                  : `Below ${fmtUsd(tiers[tiers.length - 1].minVolumeUsd)} volume floor`
                 : "—"
             }
             borderLeft
@@ -317,7 +316,6 @@ export default function HomePage() {
         </div>
         {tiers.map((t, i) => {
           const isCurrent = tier?.rank === t.rank;
-          const paid = t.minTokens > 0;
           return (
             <div
               key={t.rank}
@@ -337,24 +335,21 @@ export default function HomePage() {
                     You
                   </span>
                 )}
-                {!paid && (
-                  <span className="ml-2 text-[10px] uppercase tracking-widest text-muted">tracked</span>
-                )}
               </div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:hidden">
                 <div className="text-muted">Min vol</div>
                 <div className="text-right">{fmtUsd(t.minVolumeUsd)}</div>
                 <div className="text-muted">Min</div>
-                <div className="text-right">{paid ? fmt0(t.minTokens) : "—"}</div>
+                <div className="text-right">{fmt0(t.minTokens)}</div>
                 <div className="text-muted">Median</div>
-                <div className={`text-right ${isCurrent ? "font-bold" : ""}`}>{paid ? fmt0(t.medianTokens) : "—"}</div>
+                <div className={`text-right ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
                 <div className="text-muted">Max</div>
-                <div className="text-right">{paid ? fmt0(t.maxTokens) : "—"}</div>
+                <div className="text-right">{fmt0(t.maxTokens)}</div>
               </div>
               <div className="hidden text-right sm:block">{fmtUsd(t.minVolumeUsd)}</div>
-              <div className="hidden text-right sm:block">{paid ? fmt0(t.minTokens) : "—"}</div>
-              <div className={`hidden text-right sm:block ${isCurrent ? "font-bold" : ""}`}>{paid ? fmt0(t.medianTokens) : "—"}</div>
-              <div className="hidden text-right sm:block">{paid ? fmt0(t.maxTokens) : "—"}</div>
+              <div className="hidden text-right sm:block">{fmt0(t.minTokens)}</div>
+              <div className={`hidden text-right sm:block ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
+              <div className="hidden text-right sm:block">{fmt0(t.maxTokens)}</div>
             </div>
           );
         })}

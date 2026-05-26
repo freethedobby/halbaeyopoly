@@ -155,22 +155,24 @@ export type Tier = {
 // Anchored on Hyperliquid HYPE genesis distribution:
 //   max 1,975,127 · p99 58,318 · p75 380 · p50 64 · p25 15 · p10 4.3 · min 0.11
 // Scaled up ~1.5× for a hypothetical $POLY airdrop of 310M tokens.
-// Volume-floor eligibility model. A wallet must clear a hard USD volume
-// threshold to land in each tier. Sampled from the real Polymarket leaderboard
-// (data-api .../v1/leaderboard?orderBy=VOL&timePeriod=ALL):
-//   rank #1k    ≈ $19M  -> Whale floor at $5M
-//   rank #5k    ≈ $3.5M -> Pro floor at $500k
-//   rank #30k+  ≈ <$1M  -> Trader floor at $50k
-//   rank #100k+ ≈ <$50k -> Contributor floor at $1k
-//   below $1k volume = not eligible at all
+// Volume-floor eligibility model, calibrated against the real Polymarket
+// leaderboard sampled 2026-05:
+//   rank #1     ≈ $820M
+//   rank #100   ≈ $127M
+//   rank #1k    ≈ $19M
+//   rank #2k    ≈ $10M
+//   rank #5k    ≈ $3.5M     -> Whale floor at $2M (~rank #7k)
+//   rank #10k   ≈ $1.6M     -> Pro floor at $200k (~rank #20k)
+//   rank #50k+  plateau     -> Trader floor at $25k (~rank #50k)
+//   below $1k                = NOT ELIGIBLE
 export const ELIGIBLE_WALLET_COUNT = 30_000;   // legacy reference label
 export const TRACKED_WALLET_COUNT = 100_000;   // legacy reference label
 
 export const TIERS: Tier[] = [
-  { rank: "Whale",       cohortSize: 10_000,  minVolumeUsd: 5_000_000, minTokens: 1_500, medianTokens: 15_000, maxTokens: 100_000 },
-  { rank: "Pro",         cohortSize: 30_000,  minVolumeUsd:   500_000, minTokens: 250,   medianTokens: 800,    maxTokens: 1_500   },
-  { rank: "Trader",      cohortSize: 50_000,  minVolumeUsd:    50_000, minTokens: 0,     medianTokens: 0,      maxTokens: 0       },
-  { rank: "Contributor", cohortSize: 100_000, minVolumeUsd:     1_000, minTokens: 0,     medianTokens: 0,      maxTokens: 0       },
+  { rank: "Whale",       cohortSize: 7_000,   minVolumeUsd: 2_000_000, minTokens: 1_500, medianTokens: 15_000, maxTokens: 100_000 },
+  { rank: "Pro",         cohortSize: 20_000,  minVolumeUsd:   200_000, minTokens: 250,   medianTokens: 800,    maxTokens: 1_500   },
+  { rank: "Trader",      cohortSize: 50_000,  minVolumeUsd:    25_000, minTokens: 30,    medianTokens: 80,     maxTokens: 250     },
+  { rank: "Contributor", cohortSize: 100_000, minVolumeUsd:     1_000, minTokens: 5,     medianTokens: 15,     maxTokens: 30      },
 ];
 
 const fmtUsd = (n: number) =>
@@ -273,15 +275,26 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 //   $127M   ~rank 100     -> 381M        -> ~30k POLY
 //   $500M   ~rank 3       -> 1.5B        -> ~80k POLY
 //   $820M+  rank 1        -> 2.4B+       -> 100k cap
+// Volume × 3 = points, so the volume floor numbers below become the
+// corresponding points anchors. Right column = token floor.
+//   $1k    Contributor   -> 3k pts        -> 5 POLY
+//   $25k   Trader        -> 75k pts       -> 30 POLY
+//   $200k  Pro           -> 600k pts      -> 250 POLY
+//   $2M    Whale         -> 6M pts        -> 1.5k POLY
+//   $20M   mid-Whale     -> 60M pts       -> ~10k POLY
+//   $127M  ~rank #100    -> 381M pts      -> ~30k POLY
+//   $500M  ~rank #3      -> 1.5B pts      -> ~80k POLY
+//   $820M  rank #1       -> 2.5B pts      -> 100k cap
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
-  [150_000,       1],
-  [1_500_000,     250],       // Pro floor
-  [15_000_000,    1_500],     // Whale floor
+  [3_000,         5],
+  [75_000,        30],
+  [600_000,       250],
+  [6_000_000,     1_500],
   [60_000_000,    10_000],
   [381_000_000,   30_000],
   [1_500_000_000, 80_000],
-  [2_500_000_000, 100_000],   // Cap
+  [2_500_000_000, 100_000],
 ];
 
 function tokensFromPoints(points: number): number {
@@ -336,5 +349,7 @@ export function getTier(
 }
 
 export function isEligibleForPayout(tier: Tier | null): boolean {
-  return tier !== null && tier.minTokens > 0;
+  // All four named tiers now pay a non-zero allocation. Eligibility is a
+  // boolean: are you inside the 100k-eligible pool or not?
+  return tier !== null;
 }
