@@ -89,7 +89,7 @@ export const SLIDER_CONFIG: Record<keyof Weights, { label: string; min: number; 
   perReferral:           { label: "Points per referral",           min: 0, max: 2000, step: 10  },
   perConsecutiveWeek:    { label: "Points per consecutive week",   min: 0, max: 5000, step: 50  },
   perCategory:           { label: "Points per category",           min: 0, max: 2000, step: 10  },
-  perAvgTradeSizeDollar: { label: "Points per $ avg trade size",   min: 0, max: 50,   step: 1   },
+  perAvgTradeSizeDollar: { label: "Points per $ avg / market",     min: 0, max: 50,   step: 1   },
   perActiveDay:          { label: "Points per active day",         min: 0, max: 500,  step: 10  },
   xMultiplier:           { label: "X-connected multiplier",        min: 1, max: 2,    step: 0.05 },
 };
@@ -142,28 +142,33 @@ export function scaleFactor(e: Economics): number {
 //     max   1,975,126.70
 // Tier thresholds approximate cohort cutoffs.
 export type Tier = {
-  rank: string;        // "Top 100", "Top 1k", etc.
-  cohortSize: number;  // 100, 1000, 10000, 50000, 100000
-  minTokens: number;   // floor token amount to land in this tier
-  medianTokens: number; // typical allocation inside the tier
-  maxTokens: number;   // ceiling token amount for this tier
+  rank: string;
+  cohortSize: number;     // approximate count of wallets at this tier or above
+  minVolumeUsd: number;   // hard volume floor in USD to qualify for this tier
+  minTokens: number;      // expected token floor at this tier (0 = unpaid tier)
+  medianTokens: number;
+  maxTokens: number;
 };
 
 // Anchored on Hyperliquid HYPE genesis distribution:
 //   max 1,975,127 · p99 58,318 · p75 380 · p50 64 · p25 15 · p10 4.3 · min 0.11
 // Scaled up ~1.5× for a hypothetical $POLY airdrop of 310M tokens.
-// Eligibility model: only the top ~100k wallets receive any $POLY (matches
-// Hyperliquid's ~94k eligible cohort). Tiers are percentiles within that pool.
-export const ELIGIBLE_WALLET_COUNT = 100_000;
+// Volume-floor eligibility model. A wallet must clear a hard USD volume
+// threshold to land in each tier. Sampled from the real Polymarket leaderboard
+// (data-api .../v1/leaderboard?orderBy=VOL&timePeriod=ALL):
+//   rank #1k    ≈ $19M  -> Whale floor at $5M
+//   rank #5k    ≈ $3.5M -> Pro floor at $500k
+//   rank #30k+  ≈ <$1M  -> Trader floor at $50k
+//   rank #100k+ ≈ <$50k -> Contributor floor at $1k
+//   below $1k volume = not eligible at all
+export const ELIGIBLE_WALLET_COUNT = 30_000;   // legacy reference label
+export const TRACKED_WALLET_COUNT = 100_000;   // legacy reference label
 
-// Percentile-based tier ladder. cohortSize = how many wallets fit in this
-// bucket (cumulative from the top). min/median/maxTokens are calibrated
-// against real Polymarket volume data (see POINTS_ANCHORS).
 export const TIERS: Tier[] = [
-  { rank: "Top 0.1%", cohortSize: 100,     minTokens: 30_000, medianTokens: 55_000, maxTokens: 100_000 },
-  { rank: "Top 10%",  cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 8_000,  maxTokens: 30_000  },
-  { rank: "Top 30%",  cohortSize: 30_000,  minTokens: 250,    medianTokens: 700,    maxTokens: 1_500   },
-  { rank: "Novice",   cohortSize: 100_000, minTokens: 1,      medianTokens: 80,     maxTokens: 250     },
+  { rank: "Whale",       cohortSize: 10_000,  minVolumeUsd: 5_000_000, minTokens: 1_500, medianTokens: 15_000, maxTokens: 100_000 },
+  { rank: "Pro",         cohortSize: 30_000,  minVolumeUsd:   500_000, minTokens: 250,   medianTokens: 800,    maxTokens: 1_500   },
+  { rank: "Trader",      cohortSize: 50_000,  minVolumeUsd:    50_000, minTokens: 0,     medianTokens: 0,      maxTokens: 0       },
+  { rank: "Contributor", cohortSize: 100_000, minVolumeUsd:     1_000, minTokens: 0,     medianTokens: 0,      maxTokens: 0       },
 ];
 
 const fmtUsd = (n: number) =>
@@ -225,7 +230,7 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
     { key: "perReferral",           label: "Referrals invited",      input: ui.referralsInvited.toLocaleString(),         weight: `×${weights.perReferral}/ref`,           points: ptsReferrals },
     { key: "perConsecutiveWeek",    label: "Consecutive weeks",      input: stats.consecutiveActiveWeeks.toLocaleString(),weight: `×${weights.perConsecutiveWeek}/wk`,     points: ptsWeeks },
     { key: "perCategory",           label: "Category diversity",     input: stats.categoryDiversity.toLocaleString(),     weight: `×${weights.perCategory}/cat`,           points: ptsCategories },
-    { key: "perAvgTradeSizeDollar", label: "Avg trade size",         input: `$${stats.avgTradeSize.toFixed(2)}`,          weight: `×${weights.perAvgTradeSizeDollar}/$`,   points: ptsAvgTrade },
+    { key: "perAvgTradeSizeDollar", label: "Avg $ per market",       input: `$${stats.avgTradeSize.toFixed(2)}`,          weight: `×${weights.perAvgTradeSizeDollar}/$`,   points: ptsAvgTrade },
     { key: "perActiveDay",          label: "Active days",            input: `${stats.activeDays.toLocaleString()}${stats.daysSinceLastTrade > 0 ? ` (${stats.daysSinceLastTrade}d idle)` : ""}`, weight: `×${weights.perActiveDay}/day`, points: ptsActiveDays },
     { key: "xMultiplier",           label: "X connected",            input: ui.xConnected ? "Yes" : "No",                 weight: `×${weights.xMultiplier.toFixed(2)}`,    points: ui.xConnected ? Math.round(subtotal * (weights.xMultiplier - 1)) : 0, isMultiplier: true },
   ];
@@ -289,6 +294,8 @@ export function scaleTier(t: Tier, economics: Economics): Tier {
   const s = scaleFactor(economics);
   return {
     ...t,
+    // minVolumeUsd stays fixed; it's the wallet-side qualifier, not an
+    // airdrop-pool quantity.
     minTokens: Math.round(t.minTokens * s),
     medianTokens: Math.round(t.medianTokens * s),
     maxTokens: Math.round(t.maxTokens * s),
@@ -299,15 +306,21 @@ export function scaledTiers(economics: Economics): Tier[] {
   return TIERS.map((t) => scaleTier(t, economics));
 }
 
-export function getTier(estimatedTokens: number, economics: Economics = DEFAULT_ECONOMICS): Tier | null {
-  if (estimatedTokens <= 0) return null;
+// Tier is gated by hard USD volume floors. Whale + Pro are paid; Trader and
+// Contributor are tracked-only (0 $POLY). Below the Contributor floor the
+// wallet is not eligible at all.
+export function getTier(
+  estimatedTokens: number,
+  volumeUsd: number,
+  economics: Economics = DEFAULT_ECONOMICS
+): Tier | null {
   const scaled = scaledTiers(economics);
   for (const t of scaled) {
-    if (estimatedTokens >= t.minTokens) return t;
+    if (volumeUsd >= t.minVolumeUsd) return t;
   }
   return null;
 }
 
-export function isEligible(estimatedTokens: number, economics: Economics = DEFAULT_ECONOMICS): boolean {
-  return getTier(estimatedTokens, economics) !== null;
+export function isEligibleForPayout(tier: Tier | null): boolean {
+  return tier !== null && tier.minTokens > 0;
 }

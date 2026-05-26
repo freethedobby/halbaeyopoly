@@ -154,10 +154,13 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
 
   // Prefer Polymarket's authoritative count of distinct markets traded (the
   // "predictions" number on the profile page). Falls back to our paged trade
-  // count if /traded fails. trades.length is also used for avg trade size,
-  // categories and weeks since those need per-trade data.
+  // count if /traded fails. trades.length is still used for category and
+  // active-day metrics since those need per-trade timestamps.
   const tradeCount = typeof tradedCount?.traded === "number" ? tradedCount.traded : trades.length;
-  const avgTradeSize = trades.length > 0 ? tradeVolume / trades.length : 0;
+  // Avg trade size = lifetime USD volume / lifetime markets traded. Both come
+  // from authoritative endpoints, so this stays consistent for whales whose
+  // /trades responses are truncated at 3500.
+  const avgTradeSize = tradeCount > 0 ? weightedVolume / tradeCount : 0;
 
   // Account age: prefer the explicit profile.createdAt from Gamma (the real
   // account creation date). Fall back to the oldest record we can find.

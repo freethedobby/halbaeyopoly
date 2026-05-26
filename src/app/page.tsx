@@ -14,6 +14,7 @@ import {
   airdropSupply,
   tokenPriceUsd,
   ELIGIBLE_WALLET_COUNT,
+  TRACKED_WALLET_COUNT,
 } from "@/lib/scoring";
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -75,7 +76,10 @@ export default function HomePage() {
     [stats, xConnected, profileViews, referrals, weights, economics]
   );
 
-  const tier = result ? getTier(result.estimatedTokens, economics) : null;
+  const tier = result && stats
+    ? getTier(result.estimatedTokens, stats.weightedVolume, economics)
+    : null;
+  const isPaidTier = tier !== null && tier.minTokens > 0;
   const tiers = useMemo(() => scaledTiers(economics), [economics]);
 
   // Trigger a 5-second confetti burst whenever the user lands on a new tier.
@@ -236,12 +240,16 @@ export default function HomePage() {
           {result && (
             <span
               className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-                tier
+                isPaidTier
                   ? "border border-white bg-white text-black"
                   : "border border-white/40 text-muted"
               }`}
             >
-              {tier ? `✓ Eligible — ${tier.rank}` : "✗ Not eligible"}
+              {tier
+                ? isPaidTier
+                  ? `✓ ${tier.rank} — eligible`
+                  : `${tier.rank} — tracked (0 $POLY)`
+                : "✗ Not eligible"}
             </span>
           )}
         </div>
@@ -273,7 +281,7 @@ export default function HomePage() {
                   <span className="value-pop inline-flex items-baseline gap-2">
                     {tier.rank}
                     <span
-                      title="Estimated airdrop-tier bucket from points = volume + PnL + age + active days + ... Drag the Weights tab to model different formulas."
+                      title="Points-based tier. Whale and Pro receive $POLY. Trader and Contributor are tracked but earn 0 under the current top-30%-only payout. Drag the Weights tab to model different formulas."
                       className="cursor-help border border-white/40 px-1.5 text-[10px] font-normal text-muted hover:text-white"
                     >
                       ?
@@ -287,10 +295,12 @@ export default function HomePage() {
               )
             }
             sub={
-              result
-                ? tier
-                  ? `Eligible · ≥ ${fmt0(tier.minTokens)} $POLY`
-                  : `Below Top ${fmt0(ELIGIBLE_WALLET_COUNT)} threshold`
+              result && stats
+                ? isPaidTier
+                  ? `Eligible · ≥ ${fmtUsd(tier!.minVolumeUsd)} volume`
+                  : tier
+                    ? `Tracked · need ${fmtUsd(tiers[1].minVolumeUsd)} vol to pay`
+                    : `Below ${fmtUsd(tiers[tiers.length - 1].minVolumeUsd)} volume floor`
                 : "—"
             }
             borderLeft
@@ -298,19 +308,20 @@ export default function HomePage() {
         </div>
 
         {/* Tier table — desktop header (hidden on mobile) */}
-        <div className="hidden border-b border-white px-5 py-3 text-xs uppercase tracking-widest text-muted sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr]">
-          <div>Tier (within Top {fmt0(ELIGIBLE_WALLET_COUNT)} eligible)</div>
-          <div className="text-right">Cohort size</div>
+        <div className="hidden border-b border-white px-5 py-3 text-xs uppercase tracking-widest text-muted sm:grid sm:grid-cols-[1.2fr_1.1fr_1fr_1fr_1fr]">
+          <div>Tier</div>
+          <div className="text-right">Min volume</div>
           <div className="text-right">Min $POLY</div>
           <div className="text-right">Median $POLY</div>
           <div className="text-right">Max $POLY</div>
         </div>
         {tiers.map((t, i) => {
           const isCurrent = tier?.rank === t.rank;
+          const paid = t.minTokens > 0;
           return (
             <div
               key={t.rank}
-              className={`px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
+              className={`px-4 py-4 sm:grid sm:grid-cols-[1.2fr_1.1fr_1fr_1fr_1fr] sm:items-center sm:px-5 ${
                 i < tiers.length - 1 ? "border-b border-white/30" : ""
               } ${
                 isCurrent
@@ -326,22 +337,24 @@ export default function HomePage() {
                     You
                   </span>
                 )}
+                {!paid && (
+                  <span className="ml-2 text-[10px] uppercase tracking-widest text-muted">tracked</span>
+                )}
               </div>
-              {/* Mobile: 2x2 metric grid; Desktop: inline cells */}
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:hidden">
-                <div className="text-muted">Cohort</div>
-                <div className="text-right">{fmt0(t.cohortSize)}</div>
+                <div className="text-muted">Min vol</div>
+                <div className="text-right">{fmtUsd(t.minVolumeUsd)}</div>
                 <div className="text-muted">Min</div>
-                <div className="text-right">{fmt0(t.minTokens)}</div>
+                <div className="text-right">{paid ? fmt0(t.minTokens) : "—"}</div>
                 <div className="text-muted">Median</div>
-                <div className={`text-right ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
+                <div className={`text-right ${isCurrent ? "font-bold" : ""}`}>{paid ? fmt0(t.medianTokens) : "—"}</div>
                 <div className="text-muted">Max</div>
-                <div className="text-right">{fmt0(t.maxTokens)}</div>
+                <div className="text-right">{paid ? fmt0(t.maxTokens) : "—"}</div>
               </div>
-              <div className="hidden text-right sm:block">{fmt0(t.cohortSize)}</div>
-              <div className="hidden text-right sm:block">{fmt0(t.minTokens)}</div>
-              <div className={`hidden text-right sm:block ${isCurrent ? "font-bold" : ""}`}>{fmt0(t.medianTokens)}</div>
-              <div className="hidden text-right sm:block">{fmt0(t.maxTokens)}</div>
+              <div className="hidden text-right sm:block">{fmtUsd(t.minVolumeUsd)}</div>
+              <div className="hidden text-right sm:block">{paid ? fmt0(t.minTokens) : "—"}</div>
+              <div className={`hidden text-right sm:block ${isCurrent ? "font-bold" : ""}`}>{paid ? fmt0(t.medianTokens) : "—"}</div>
+              <div className="hidden text-right sm:block">{paid ? fmt0(t.maxTokens) : "—"}</div>
             </div>
           );
         })}
@@ -996,7 +1009,7 @@ function placeholderRows(): ScoreRow[] {
     { key: "perReferral",           label: "Referrals invited",   input: "—", weight: `×${w.perReferral}/ref`,           points: 0 },
     { key: "perConsecutiveWeek",    label: "Consecutive weeks",   input: "—", weight: `×${w.perConsecutiveWeek}/wk`,     points: 0 },
     { key: "perCategory",           label: "Category diversity",  input: "—", weight: `×${w.perCategory}/cat`,           points: 0 },
-    { key: "perAvgTradeSizeDollar", label: "Avg trade size",      input: "—", weight: `×${w.perAvgTradeSizeDollar}/$`,   points: 0 },
+    { key: "perAvgTradeSizeDollar", label: "Avg $ per market",    input: "—", weight: `×${w.perAvgTradeSizeDollar}/$`,   points: 0 },
     { key: "perActiveDay",          label: "Active days",         input: "—", weight: `×${w.perActiveDay}/day`,          points: 0 },
     { key: "xMultiplier",           label: "X connected",         input: "—", weight: `×${w.xMultiplier.toFixed(2)}`,    points: 0, isMultiplier: true },
   ];
