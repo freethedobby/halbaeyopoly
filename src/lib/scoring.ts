@@ -160,13 +160,10 @@ export const ELIGIBLE_WALLET_COUNT = 100_000;
 // bucket (cumulative from the top). min/median/maxTokens are calibrated
 // against real Polymarket volume data (see POINTS_ANCHORS).
 export const TIERS: Tier[] = [
-  { rank: "Top 0.1%",      cohortSize: 100,     minTokens: 30_000, medianTokens: 60_000, maxTokens: 100_000 },
-  { rank: "Top 1%",        cohortSize: 1_000,   minTokens: 10_000, medianTokens: 18_000, maxTokens: 30_000  },
-  { rank: "Top 5%",        cohortSize: 5_000,   minTokens: 4_500,  medianTokens: 7_000,  maxTokens: 10_000  },
-  { rank: "Top 10%",       cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 2_800,  maxTokens: 4_500   },
-  { rank: "Top 20%",       cohortSize: 20_000,  minTokens: 600,    medianTokens: 1_000,  maxTokens: 1_500   },
-  { rank: "Top 50%",       cohortSize: 50_000,  minTokens: 65,     medianTokens: 250,    maxTokens: 600     },
-  { rank: "Eligible (rest)", cohortSize: 100_000, minTokens: 1,    medianTokens: 25,     maxTokens: 65      },
+  { rank: "Top 1%",          cohortSize: 1_000,   minTokens: 10_000, medianTokens: 28_000, maxTokens: 100_000 },
+  { rank: "Top 10%",         cohortSize: 10_000,  minTokens: 1_500,  medianTokens: 4_500,  maxTokens: 10_000  },
+  { rank: "Top 30%",         cohortSize: 30_000,  minTokens: 250,    medianTokens: 700,    maxTokens: 1_500   },
+  { rank: "Eligible (rest)", cohortSize: 100_000, minTokens: 1,      medianTokens: 80,     maxTokens: 250     },
 ];
 
 const fmtUsd = (n: number) =>
@@ -261,14 +258,11 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 // wallets. The right column equals the corresponding TIERS[].minTokens.
 const POINTS_ANCHORS: Array<[number, number]> = [
   [0,             0],
-  [40_000,        1],         // 100% (eligible-rest floor)
-  [320_000,       65],        // Top 50% floor
-  [800_000,       600],       // Top 20% floor
-  [1_300_000,     1_500],     // Top 10% floor
-  [3_300_000,     4_500],     // Top 5% floor
-  [15_000_000,    10_000],    // Top 1% floor
-  [102_000_000,   30_000],    // Top 0.1% floor
-  [656_000_000,   100_000],   // Cap
+  [40_000,        1],         // Eligible-rest floor (100k cohort)
+  [600_000,       250],       // Top 30% floor (30k cohort)
+  [1_300_000,     1_500],     // Top 10% floor (10k cohort)
+  [15_000_000,    10_000],    // Top 1% floor (1k cohort)
+  [656_000_000,   100_000],   // Cap (top wallet)
 ];
 
 function tokensFromPoints(points: number): number {

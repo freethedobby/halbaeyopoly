@@ -402,13 +402,10 @@ export default function HomePage() {
 }
 
 const TIER_STARS: Record<string, { count: number; palette: string[]; sizeRange: [number, number] }> = {
-  "Top 10":       { count: 220, palette: ["#ffd76a", "#f5a623", "#fff2c2", "#ffaa00", "#ff7e00"], sizeRange: [3, 9] },
-  "Top 100":      { count: 150, palette: ["#ffd76a", "#fff2c2", "#f5a623", "#e2e6ee"], sizeRange: [3, 7] },
-  "Top 1,000":    { count: 110, palette: ["#e2e6ee", "#a9b1c4", "#d6dbe6", "#9aa3bd"], sizeRange: [2, 6] },
-  "Top 10,000":   { count: 80,  palette: ["#8aa3e8", "#6082dc", "#5b9bd5", "#aac3ff"], sizeRange: [2, 5] },
-  "Top 25,000":   { count: 55,  palette: ["#6b7390", "#4d556e", "#7c8aa8"], sizeRange: [2, 4] },
-  "Top 50,000":   { count: 35,  palette: ["#555c70", "#4d556e"], sizeRange: [2, 4] },
-  "All claimers": { count: 22,  palette: ["#3a4258", "#2c3550"], sizeRange: [1, 3] },
+  "Top 1%":          { count: 220, palette: ["#ffd76a", "#f5a623", "#fff2c2", "#ffaa00", "#ff7e00"], sizeRange: [3, 9] },
+  "Top 10%":         { count: 130, palette: ["#e2e6ee", "#a9b1c4", "#d6dbe6", "#9aa3bd"], sizeRange: [2, 6] },
+  "Top 30%":         { count: 70,  palette: ["#8aa3e8", "#6082dc", "#5b9bd5"], sizeRange: [2, 5] },
+  "Eligible (rest)": { count: 35,  palette: ["#555c70", "#4d556e"], sizeRange: [2, 4] },
 };
 const DEFAULT_STARS = { count: 40, palette: ["#6b7390", "#4d556e", "#5b6a8a"], sizeRange: [2, 4] as [number, number] };
 
