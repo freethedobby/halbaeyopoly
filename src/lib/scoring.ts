@@ -211,16 +211,33 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
   const xMult = ui.xConnected ? weights.xMultiplier : 1;
   const totalPoints = Math.round(subtotal * xMult * idleDecay);
 
-  // Token allocation is derived from the user's points falling into a Hyperliquid-style
-  // power-law curve. We approximate using a piecewise log-linear interpolation
-  // anchored on the tier thresholds.
+  // --- Token allocation -----------------------------------------------
+  // 1. Base allocation = piecewise-LINEAR interpolation across each tier
+  //    band, driven only by USD volume. This guarantees that inside a tier,
+  //    doubling your volume roughly doubles your tokens — no log-curve kinks
+  //    that quietly inflate near tier boundaries.
+  // 2. Activity multiplier in [0.8, 1.5] applied to the base. Driven by a
+  //    points-density score that's normalized against an expected "good
+  //    citizen" baseline (active 4 days/week for a year + decent retention).
+  //    Idle decay still applies on top.
+  const baseTokens = tokensFromVolume(stats.weightedVolume);
+  const nonVolPoints =
+    ptsProfit + ptsLp + ptsPredictions + ptsAge + ptsViews + ptsReferrals +
+    ptsWeeks + ptsCategories + ptsAvgTrade + ptsActiveDays;
+  // A "model good wallet" produces ~50k non-volume points: 200 active days
+  // × 30 + 365 age × 10 + 10 weeks × 500 + 200 markets × 10 = 53k. We map
+  // that onto a 0.8x..1.5x multiplier so loyalty matters without overpowering
+  // volume's tier-band placement.
+  const GOOD_NON_VOL = 50_000;
+  const activityRatio = Math.min(1, nonVolPoints / GOOD_NON_VOL);
+  const xBoost = ui.xConnected ? (weights.xMultiplier - 1) : 0;
+  // Range: 0.8x (lazy, idle) -> 1.65x (active + X-connected, no idle decay).
+  // Idle decay applies on top to ensure dormant wallets are punished.
+  const activityMultiplier = Math.min(1.65, 0.8 + activityRatio * 0.7 + xBoost) * idleDecay;
+
   const scale = scaleFactor(economics);
-  // Hard cap on the per-wallet allocation. Real airdrops almost always have
-  // one — Hyperliquid capped individual claims at ~1.97M HYPE. We cap at
-  // 100k $POLY by default, which keeps the tier curve from blowing up at the
-  // top end and protects the median wallet's slice.
-  const cappedTokens = Math.min(MAX_TOKENS_PER_WALLET, tokensFromPoints(totalPoints) * scale);
-  const estimatedTokens = Math.round(cappedTokens);
+  const cappedTokens = Math.min(MAX_TOKENS_PER_WALLET, baseTokens * activityMultiplier * scale);
+  const estimatedTokens = Math.round(Math.max(0, cappedTokens));
   const poolSharePct = (estimatedTokens / airdropSupply(economics)) * 100;
   const estimatedValueUsd = estimatedTokens * tokenPriceUsd(economics);
 
@@ -275,47 +292,43 @@ export function score(stats: WalletStats, ui: ScoringInputs, weights: Weights, e
 //   $127M   ~rank 100     -> 381M        -> ~30k POLY
 //   $500M   ~rank 3       -> 1.5B        -> ~80k POLY
 //   $820M+  rank 1        -> 2.4B+       -> 100k cap
-// Volume × 3 = points, so the volume floor numbers below become the
-// corresponding points anchors. Right column = token floor. With the
-// 50k per-wallet cap, the top end is compressed:
-//   $1k    Contributor   -> 3k pts        -> 5 POLY
-//   $25k   Trader        -> 75k pts       -> 30 POLY
-//   $200k  Pro           -> 600k pts      -> 250 POLY
-//   $2M    Whale         -> 6M pts        -> 1.5k POLY
-//   $20M   mid-Whale     -> 60M pts       -> ~6k POLY
-//   $127M  ~rank #100    -> 381M pts      -> ~18k POLY
-//   $500M  ~rank #3      -> 1.5B pts      -> ~40k POLY
-//   $820M  rank #1       -> 2.5B pts      -> 50k cap
-const POINTS_ANCHORS: Array<[number, number]> = [
-  [0,             0],
-  [3_000,         5],
-  [75_000,        30],
-  [600_000,       250],
-  [6_000_000,     1_500],
-  [60_000_000,    6_000],
-  [381_000_000,   18_000],
-  [1_500_000_000, 40_000],
-  [2_500_000_000, 50_000],
-];
+// Cap volume that the volume-curve will consider, so a single mega-whale
+// can't dwarf the rest. swisstony is ~$820M; anything beyond this saturates
+// the curve at the 50k cap.
+const WHALE_CEIL_VOLUME = 820_000_000;
 
-function tokensFromPoints(points: number): number {
-  if (points <= 0) return 0;
-  for (let i = 1; i < POINTS_ANCHORS.length; i++) {
-    const [p0, t0] = POINTS_ANCHORS[i - 1];
-    const [p1, t1] = POINTS_ANCHORS[i];
-    if (points <= p1) {
-      if (p0 === 0) {
-        // linear interp on first segment to avoid log(0)
-        const ratio = points / p1;
-        return Math.round(t0 + (t1 - t0) * ratio);
-      }
-      const logP = Math.log(points);
-      const logRatio = (logP - Math.log(p0)) / (Math.log(p1) - Math.log(p0));
-      const logT = Math.log(t0) + (Math.log(t1) - Math.log(t0)) * logRatio;
-      return Math.round(Math.exp(logT));
+// Map a USD volume to a token allocation. Pure linear interpolation INSIDE
+// each tier band so that, e.g., a $3M Whale gets roughly the volume-weighted
+// average of a $2M and a $5M Whale — instead of the log curve we used to
+// have which compressed the lower half of each band.
+//
+// Curve shape:
+//   below $1k             -> 0          (not eligible)
+//   $1k    to $25k        -> 5 to 30    (Contributor band)
+//   $25k   to $200k       -> 30 to 250  (Trader band)
+//   $200k  to $2M         -> 250 to 1.5k (Pro band)
+//   $2M    to $820M       -> 1.5k to 50k (Whale band, capped)
+function tokensFromVolume(volumeUsd: number): number {
+  if (volumeUsd <= 0) return 0;
+  // Walk paid tier segments [low, high] -> [tokensLow, tokensHigh].
+  // Order matters: top tier first because volumeUsd is checked descending.
+  type Seg = { lowVol: number; highVol: number; lowTok: number; highTok: number };
+  const segs: Seg[] = [
+    { lowVol: TIERS[0].minVolumeUsd, highVol: WHALE_CEIL_VOLUME,  lowTok: TIERS[0].minTokens, highTok: TIERS[0].maxTokens },
+    { lowVol: TIERS[1].minVolumeUsd, highVol: TIERS[0].minVolumeUsd, lowTok: TIERS[1].minTokens, highTok: TIERS[1].maxTokens },
+    { lowVol: TIERS[2].minVolumeUsd, highVol: TIERS[1].minVolumeUsd, lowTok: TIERS[2].minTokens, highTok: TIERS[2].maxTokens },
+    { lowVol: TIERS[3].minVolumeUsd, highVol: TIERS[2].minVolumeUsd, lowTok: TIERS[3].minTokens, highTok: TIERS[3].maxTokens },
+  ];
+  // Saturate at the top
+  if (volumeUsd >= WHALE_CEIL_VOLUME) return TIERS[0].maxTokens;
+  // Find segment
+  for (const s of segs) {
+    if (volumeUsd >= s.lowVol && volumeUsd < s.highVol) {
+      const t = (volumeUsd - s.lowVol) / (s.highVol - s.lowVol);
+      return Math.round(s.lowTok + (s.highTok - s.lowTok) * t);
     }
   }
-  return POINTS_ANCHORS[POINTS_ANCHORS.length - 1][1];
+  return 0;
 }
 
 export function scaleTier(t: Tier, economics: Economics): Tier {
